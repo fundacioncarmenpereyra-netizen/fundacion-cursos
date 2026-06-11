@@ -3,52 +3,40 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type Profesor = {
+type Horario = {
   id: string;
-  nombre_completo: string;
-  cedula: string | null;
-  telefono: string | null;
-  whatsapp: string | null;
-  correo: string | null;
-  direccion: string | null;
-  especialidad: string | null;
-  profesion: string | null;
-  nivel_academico: string | null;
+  nombre: string;
+  dias: string;
+  hora_inicio: string;
+  hora_fin: string;
+  jornada: string;
   estado: string;
   created_at: string;
 };
 
-const nivelesAcademicos = [
-  "Técnico",
-  "Universitario",
-  "Profesional",
-  "Especialidad",
-  "Maestría",
-  "Doctorado",
-  "Otro",
-];
+const jornadas = ["Matutina", "Vespertina", "Nocturna", "Fin de semana"];
 
-export default function ProfesoresPage() {
-  const [profesores, setProfesores] = useState<Profesor[]>([]);
+export default function HorariosPage() {
+  const [horarios, setHorarios] = useState<Horario[]>([]);
 
-  const [nombreCompleto, setNombreCompleto] = useState("");
-  const [cedula, setCedula] = useState("");
-  const [telefono, setTelefono] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
-  const [correo, setCorreo] = useState("");
-  const [direccion, setDireccion] = useState("");
-  const [especialidad, setEspecialidad] = useState("");
-  const [profesion, setProfesion] = useState("");
-  const [nivelAcademico, setNivelAcademico] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [dias, setDias] = useState("");
+  const [horaInicio, setHoraInicio] = useState("");
+  const [horaFin, setHoraFin] = useState("");
+  const [jornada, setJornada] = useState("");
   const [estado, setEstado] = useState("Activo");
 
-  const [profesorEditandoId, setProfesorEditandoId] = useState<string | null>(
+  const [horarioEditandoId, setHorarioEditandoId] = useState<string | null>(
     null
   );
-  const [cedulaOriginal, setCedulaOriginal] = useState("");
+
+  const [diasOriginal, setDiasOriginal] = useState("");
+  const [horaInicioOriginal, setHoraInicioOriginal] = useState("");
+  const [horaFinOriginal, setHoraFinOriginal] = useState("");
 
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("Todos");
+  const [filtroJornada, setFiltroJornada] = useState("Todas");
 
   const [loading, setLoading] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -56,65 +44,63 @@ export default function ProfesoresPage() {
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
 
-  const estaEditando = Boolean(profesorEditandoId);
+  const estaEditando = Boolean(horarioEditandoId);
 
   useEffect(() => {
-    cargarProfesores();
+    cargarHorarios();
   }, []);
 
-  async function cargarProfesores() {
+  async function cargarHorarios() {
     setLoading(true);
     setError("");
 
     const { data, error } = await supabase
-      .from("profesores")
+      .from("horarios")
       .select(
-        "id, nombre_completo, cedula, telefono, whatsapp, correo, direccion, especialidad, profesion, nivel_academico, estado, created_at"
+        "id, nombre, dias, hora_inicio, hora_fin, jornada, estado, created_at"
       )
       .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error Supabase:", error);
       setError(`Error Supabase: ${error.message}`);
-      setProfesores([]);
+      setHorarios([]);
     } else {
-      setProfesores(data || []);
+      setHorarios(data || []);
     }
 
     setLoading(false);
   }
 
   function limpiarFormulario() {
-    setNombreCompleto("");
-    setCedula("");
-    setTelefono("");
-    setWhatsapp("");
-    setCorreo("");
-    setDireccion("");
-    setEspecialidad("");
-    setProfesion("");
-    setNivelAcademico("");
+    setNombre("");
+    setDias("");
+    setHoraInicio("");
+    setHoraFin("");
+    setJornada("");
     setEstado("Activo");
-    setProfesorEditandoId(null);
-    setCedulaOriginal("");
+
+    setHorarioEditandoId(null);
+    setDiasOriginal("");
+    setHoraInicioOriginal("");
+    setHoraFinOriginal("");
   }
 
-  function iniciarEdicion(profesor: Profesor) {
+  function iniciarEdicion(horario: Horario) {
     setError("");
     setMensaje("");
 
-    setProfesorEditandoId(profesor.id);
-    setNombreCompleto(profesor.nombre_completo || "");
-    setCedula(profesor.cedula || "");
-    setCedulaOriginal(profesor.cedula || "");
-    setTelefono(profesor.telefono || "");
-    setWhatsapp(profesor.whatsapp || "");
-    setCorreo(profesor.correo || "");
-    setDireccion(profesor.direccion || "");
-    setEspecialidad(profesor.especialidad || "");
-    setProfesion(profesor.profesion || "");
-    setNivelAcademico(profesor.nivel_academico || "");
-    setEstado(profesor.estado || "Activo");
+    setHorarioEditandoId(horario.id);
+    setNombre(horario.nombre);
+    setDias(horario.dias);
+    setHoraInicio(horario.hora_inicio?.slice(0, 5) || "");
+    setHoraFin(horario.hora_fin?.slice(0, 5) || "");
+    setJornada(horario.jornada || "");
+    setEstado(horario.estado || "Activo");
+
+    setDiasOriginal(horario.dias);
+    setHoraInicioOriginal(horario.hora_inicio?.slice(0, 5) || "");
+    setHoraFinOriginal(horario.hora_fin?.slice(0, 5) || "");
   }
 
   function cancelarEdicion() {
@@ -123,62 +109,98 @@ export default function ProfesoresPage() {
     setMensaje("");
   }
 
-  async function guardarProfesor(e: React.FormEvent<HTMLFormElement>) {
+  function formatearHora(hora: string) {
+    if (!hora) return "-";
+
+    const [h, m] = hora.split(":");
+    const fecha = new Date();
+    fecha.setHours(Number(h), Number(m || 0));
+
+    return fecha.toLocaleTimeString("es-DO", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  }
+
+  async function guardarHorario(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     setError("");
     setMensaje("");
 
-    if (!nombreCompleto.trim()) {
-      setError("El nombre completo del profesor es obligatorio.");
+    if (!nombre.trim()) {
+      setError("El nombre del horario es obligatorio.");
       return;
     }
 
-    const nombreLimpio = nombreCompleto.trim();
-    const cedulaLimpia = cedula.trim();
+    if (!dias.trim()) {
+      setError("Los días del horario son obligatorios.");
+      return;
+    }
 
-    if (cedulaLimpia) {
-      const cedulaFueCambiada =
-        !estaEditando ||
-        cedulaLimpia.toLowerCase() !== cedulaOriginal.trim().toLowerCase();
+    if (!horaInicio) {
+      setError("La hora de inicio es obligatoria.");
+      return;
+    }
 
-      if (cedulaFueCambiada) {
-        const existeCedula = profesores.some((profesor) => {
-          return (
-            (profesor.cedula || "").trim().toLowerCase() ===
-              cedulaLimpia.toLowerCase() &&
-            profesor.id !== profesorEditandoId
-          );
-        });
+    if (!horaFin) {
+      setError("La hora de finalización es obligatoria.");
+      return;
+    }
 
-        if (existeCedula) {
-          setError("Ya existe un profesor registrado con esta cédula.");
-          return;
-        }
+    if (horaFin <= horaInicio) {
+      setError("La hora de finalización debe ser mayor que la hora de inicio.");
+      return;
+    }
+
+    if (!jornada) {
+      setError("Debe seleccionar una jornada.");
+      return;
+    }
+
+    const nombreLimpio = nombre.trim();
+    const diasLimpio = dias.trim();
+
+    const horarioCambio =
+      !estaEditando ||
+      diasLimpio.toLowerCase() !== diasOriginal.trim().toLowerCase() ||
+      horaInicio !== horaInicioOriginal ||
+      horaFin !== horaFinOriginal;
+
+    if (horarioCambio) {
+      const existe = horarios.some((horario) => {
+        return (
+          horario.dias.trim().toLowerCase() === diasLimpio.toLowerCase() &&
+          horario.hora_inicio.slice(0, 5) === horaInicio &&
+          horario.hora_fin.slice(0, 5) === horaFin &&
+          horario.id !== horarioEditandoId
+        );
+      });
+
+      if (existe) {
+        setError("Ya existe un horario con esos días y horas.");
+        return;
       }
     }
 
     setGuardando(true);
 
     const payload = {
-      nombre_completo: nombreLimpio,
-      cedula: cedulaLimpia || null,
-      telefono: telefono.trim() || null,
-      whatsapp: whatsapp.trim() || null,
-      correo: correo.trim() || null,
-      direccion: direccion.trim() || null,
-      especialidad: especialidad.trim() || null,
-      profesion: profesion.trim() || null,
-      nivel_academico: nivelAcademico || null,
+      nombre: nombreLimpio,
+      dias: diasLimpio,
+      hora_inicio: horaInicio,
+      hora_fin: horaFin,
+      jornada,
       estado,
       updated_at: new Date().toISOString(),
     };
 
-    if (estaEditando && profesorEditandoId) {
+    if (estaEditando && horarioEditandoId) {
       const { data, error } = await supabase
-        .from("profesores")
+        .from("horarios")
         .update(payload)
-        .eq("id", profesorEditandoId)
+        .eq("id", horarioEditandoId)
         .select("id");
 
       if (error) {
@@ -189,20 +211,20 @@ export default function ProfesoresPage() {
           "No se actualizó ningún registro. Verifique las políticas RLS de actualización en Supabase."
         );
       } else {
-        setMensaje("Profesor actualizado correctamente.");
+        setMensaje("Horario actualizado correctamente.");
         limpiarFormulario();
-        await cargarProfesores();
+        await cargarHorarios();
       }
     } else {
-      const { error } = await supabase.from("profesores").insert(payload);
+      const { error } = await supabase.from("horarios").insert(payload);
 
       if (error) {
         console.error("Error al guardar:", error);
         setError(`Error al guardar: ${error.message}`);
       } else {
-        setMensaje("Profesor registrado correctamente.");
+        setMensaje("Horario registrado correctamente.");
         limpiarFormulario();
-        await cargarProfesores();
+        await cargarHorarios();
       }
     }
 
@@ -214,7 +236,7 @@ export default function ProfesoresPage() {
     setMensaje("");
 
     const { error } = await supabase
-      .from("profesores")
+      .from("horarios")
       .update({
         estado: nuevoEstado,
         updated_at: new Date().toISOString(),
@@ -227,34 +249,33 @@ export default function ProfesoresPage() {
     } else {
       setMensaje(
         nuevoEstado === "Activo"
-          ? "Profesor activado correctamente."
-          : "Profesor inactivado correctamente."
+          ? "Horario activado correctamente."
+          : "Horario inactivado correctamente."
       );
 
-      if (profesorEditandoId === id) {
+      if (horarioEditandoId === id) {
         setEstado(nuevoEstado);
       }
 
-      await cargarProfesores();
+      await cargarHorarios();
     }
   }
 
-  const profesoresFiltrados = profesores.filter((profesor) => {
+  const horariosFiltrados = horarios.filter((horario) => {
     const texto = busqueda.toLowerCase();
 
     const coincideBusqueda =
-      profesor.nombre_completo.toLowerCase().includes(texto) ||
-      (profesor.cedula || "").toLowerCase().includes(texto) ||
-      (profesor.telefono || "").toLowerCase().includes(texto) ||
-      (profesor.whatsapp || "").toLowerCase().includes(texto) ||
-      (profesor.correo || "").toLowerCase().includes(texto) ||
-      (profesor.especialidad || "").toLowerCase().includes(texto) ||
-      (profesor.profesion || "").toLowerCase().includes(texto);
+      horario.nombre.toLowerCase().includes(texto) ||
+      horario.dias.toLowerCase().includes(texto) ||
+      horario.jornada.toLowerCase().includes(texto);
 
     const coincideEstado =
-      filtroEstado === "Todos" || profesor.estado === filtroEstado;
+      filtroEstado === "Todos" || horario.estado === filtroEstado;
 
-    return coincideBusqueda && coincideEstado;
+    const coincideJornada =
+      filtroJornada === "Todas" || horario.jornada === filtroJornada;
+
+    return coincideBusqueda && coincideEstado && coincideJornada;
   });
 
   return (
@@ -268,18 +289,18 @@ export default function ProfesoresPage() {
               </p>
 
               <h1 className="mt-1 text-2xl font-bold text-slate-900">
-                Profesores
+                Horarios
               </h1>
 
               <p className="mt-1 text-sm text-slate-600">
-                Administre los profesores o facilitadores disponibles para los
-                cursos.
+                Administre los días y horas disponibles para impartir los cursos
+                de la Fundación.
               </p>
             </div>
 
             <button
               type="button"
-              onClick={cargarProfesores}
+              onClick={cargarHorarios}
               className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
             >
               Actualizar
@@ -299,29 +320,43 @@ export default function ProfesoresPage() {
           )}
         </section>
 
-        <div className="grid gap-6 xl:grid-cols-3">
+        <div className="grid gap-6 lg:grid-cols-3">
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-bold text-slate-900">
-              {estaEditando ? "Editar profesor" : "Nuevo profesor"}
+              {estaEditando ? "Editar horario" : "Nuevo horario"}
             </h2>
 
             <p className="mt-1 text-sm text-slate-600">
               {estaEditando
-                ? "Modifique los datos del profesor seleccionado."
-                : "Registre un profesor para luego asignarlo a los cursos."}
+                ? "Modifique los datos del horario seleccionado."
+                : "Registre un nuevo horario para los cursos."}
             </p>
 
-            <form onSubmit={guardarProfesor} className="mt-5 space-y-4">
+            <form onSubmit={guardarHorario} className="mt-5 space-y-4">
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Nombre completo
+                  Nombre del horario
                 </label>
 
                 <input
                   type="text"
-                  value={nombreCompleto}
-                  onChange={(e) => setNombreCompleto(e.target.value)}
-                  placeholder="Ej. Juan Pérez"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  placeholder="Ej. Sábados 9:00 a.m. a 12:00 p.m."
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Días
+                </label>
+
+                <input
+                  type="text"
+                  value={dias}
+                  onChange={(e) => setDias(e.target.value)}
+                  placeholder="Ej. Sábados"
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
@@ -329,58 +364,26 @@ export default function ProfesoresPage() {
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Cédula
+                    Hora inicio
                   </label>
 
                   <input
-                    type="text"
-                    value={cedula}
-                    onChange={(e) => setCedula(e.target.value)}
-                    placeholder="000-0000000-0"
+                    type="time"
+                    value={horaInicio}
+                    onChange={(e) => setHoraInicio(e.target.value)}
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
 
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Teléfono
+                    Hora fin
                   </label>
 
                   <input
-                    type="text"
-                    value={telefono}
-                    onChange={(e) => setTelefono(e.target.value)}
-                    placeholder="809-000-0000"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    WhatsApp
-                  </label>
-
-                  <input
-                    type="text"
-                    value={whatsapp}
-                    onChange={(e) => setWhatsapp(e.target.value)}
-                    placeholder="829-000-0000"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Correo
-                  </label>
-
-                  <input
-                    type="email"
-                    value={correo}
-                    onChange={(e) => setCorreo(e.target.value)}
-                    placeholder="correo@ejemplo.com"
+                    type="time"
+                    value={horaFin}
+                    onChange={(e) => setHoraFin(e.target.value)}
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
@@ -388,62 +391,18 @@ export default function ProfesoresPage() {
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Dirección
-                </label>
-
-                <input
-                  type="text"
-                  value={direccion}
-                  onChange={(e) => setDireccion(e.target.value)}
-                  placeholder="Dirección del profesor"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Especialidad
-                  </label>
-
-                  <input
-                    type="text"
-                    value={especialidad}
-                    onChange={(e) => setEspecialidad(e.target.value)}
-                    placeholder="Ej. Excel, Farmacia, Contabilidad"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Profesión
-                  </label>
-
-                  <input
-                    type="text"
-                    value={profesion}
-                    onChange={(e) => setProfesion(e.target.value)}
-                    placeholder="Ej. Licenciado, Técnico"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Nivel académico
+                  Jornada
                 </label>
 
                 <select
-                  value={nivelAcademico}
-                  onChange={(e) => setNivelAcademico(e.target.value)}
+                  value={jornada}
+                  onChange={(e) => setJornada(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="">Seleccione</option>
-                  {nivelesAcademicos.map((nivel) => (
-                    <option key={nivel} value={nivel}>
-                      {nivel}
+                  <option value="">Seleccione una jornada</option>
+                  {jornadas.map((j) => (
+                    <option key={j} value={j}>
+                      {j}
                     </option>
                   ))}
                 </select>
@@ -475,8 +434,8 @@ export default function ProfesoresPage() {
                       ? "Actualizando..."
                       : "Guardando..."
                     : estaEditando
-                    ? "Actualizar profesor"
-                    : "Guardar profesor"}
+                    ? "Actualizar horario"
+                    : "Guardar horario"}
                 </button>
 
                 {estaEditando && (
@@ -492,25 +451,25 @@ export default function ProfesoresPage() {
             </form>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2">
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">
-                  Listado de profesores
+                  Listado de horarios
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-600">
-                  Total registrados: {profesoresFiltrados.length}
+                  Total registrados: {horariosFiltrados.length}
                 </p>
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
               <input
                 type="text"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar profesor"
+                placeholder="Buscar horario"
                 className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
               />
 
@@ -523,16 +482,30 @@ export default function ProfesoresPage() {
                 <option value="Activo">Activos</option>
                 <option value="Inactivo">Inactivos</option>
               </select>
+
+              <select
+                value={filtroJornada}
+                onChange={(e) => setFiltroJornada(e.target.value)}
+                className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="Todas">Todas las jornadas</option>
+                {jornadas.map((j) => (
+                  <option key={j} value={j}>
+                    {j}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="mt-5 overflow-x-auto">
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b bg-slate-100 text-left text-slate-700">
-                    <th className="px-3 py-3 font-semibold">Profesor</th>
-                    <th className="px-3 py-3 font-semibold">Contacto</th>
-                    <th className="px-3 py-3 font-semibold">Especialidad</th>
-                    <th className="px-3 py-3 font-semibold">Nivel</th>
+                    <th className="px-3 py-3 font-semibold">Nombre</th>
+                    <th className="px-3 py-3 font-semibold">Días</th>
+                    <th className="px-3 py-3 font-semibold">Inicio</th>
+                    <th className="px-3 py-3 font-semibold">Fin</th>
+                    <th className="px-3 py-3 font-semibold">Jornada</th>
                     <th className="px-3 py-3 font-semibold">Estado</th>
                     <th className="px-3 py-3 font-semibold">Acciones</th>
                   </tr>
@@ -542,66 +515,56 @@ export default function ProfesoresPage() {
                   {loading ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="px-3 py-6 text-center text-slate-500"
                       >
-                        Cargando profesores...
+                        Cargando horarios...
                       </td>
                     </tr>
-                  ) : profesoresFiltrados.length === 0 ? (
+                  ) : horariosFiltrados.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="px-3 py-6 text-center text-slate-500"
                       >
-                        No hay profesores registrados.
+                        No hay horarios registrados.
                       </td>
                     </tr>
                   ) : (
-                    profesoresFiltrados.map((profesor) => (
+                    horariosFiltrados.map((horario) => (
                       <tr
-                        key={profesor.id}
+                        key={horario.id}
                         className="border-b hover:bg-slate-50"
                       >
-                        <td className="px-3 py-3">
-                          <p className="font-medium text-slate-900">
-                            {profesor.nombre_completo}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            Cédula: {profesor.cedula || "No registrada"}
-                          </p>
+                        <td className="px-3 py-3 font-medium text-slate-900">
+                          {horario.nombre}
                         </td>
 
                         <td className="px-3 py-3 text-slate-600">
-                          <p>Tel: {profesor.telefono || "-"}</p>
-                          <p className="text-xs">
-                            WhatsApp: {profesor.whatsapp || "-"}
-                          </p>
-                          <p className="text-xs">
-                            {profesor.correo || "Sin correo"}
-                          </p>
+                          {horario.dias}
                         </td>
 
                         <td className="px-3 py-3 text-slate-600">
-                          <p>{profesor.especialidad || "-"}</p>
-                          <p className="text-xs">
-                            {profesor.profesion || ""}
-                          </p>
+                          {formatearHora(horario.hora_inicio)}
                         </td>
 
                         <td className="px-3 py-3 text-slate-600">
-                          {profesor.nivel_academico || "-"}
+                          {formatearHora(horario.hora_fin)}
+                        </td>
+
+                        <td className="px-3 py-3 text-slate-600">
+                          {horario.jornada}
                         </td>
 
                         <td className="px-3 py-3">
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                              profesor.estado === "Activo"
+                              horario.estado === "Activo"
                                 ? "bg-green-100 text-green-700"
                                 : "bg-slate-200 text-slate-700"
                             }`}
                           >
-                            {profesor.estado}
+                            {horario.estado}
                           </span>
                         </td>
 
@@ -609,17 +572,17 @@ export default function ProfesoresPage() {
                           <div className="flex flex-wrap gap-2">
                             <button
                               type="button"
-                              onClick={() => iniciarEdicion(profesor)}
+                              onClick={() => iniciarEdicion(horario)}
                               className="rounded-lg border border-blue-300 px-3 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
                             >
                               Editar
                             </button>
 
-                            {profesor.estado === "Activo" ? (
+                            {horario.estado === "Activo" ? (
                               <button
                                 type="button"
                                 onClick={() =>
-                                  cambiarEstado(profesor.id, "Inactivo")
+                                  cambiarEstado(horario.id, "Inactivo")
                                 }
                                 className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                               >
@@ -629,7 +592,7 @@ export default function ProfesoresPage() {
                               <button
                                 type="button"
                                 onClick={() =>
-                                  cambiarEstado(profesor.id, "Activo")
+                                  cambiarEstado(horario.id, "Activo")
                                 }
                                 className="rounded-lg border border-green-300 px-3 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-50"
                               >
