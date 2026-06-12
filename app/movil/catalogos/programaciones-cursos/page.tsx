@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -20,15 +21,12 @@ type Horario = {
   id: string;
   nombre: string;
   dias: string;
-  hora_inicio: string;
-  hora_fin: string;
   estado: string;
 };
 
 type Aula = {
   id: string;
   nombre: string;
-  capacidad: number | null;
   estado: string;
 };
 
@@ -53,11 +51,23 @@ type ProgramacionCurso = {
   estado: string;
   observacion: string | null;
   created_at: string;
-  cursos?: { nombre: string; precio: number | null }[] | null;
-  modalidades?: { nombre: string }[] | null;
-  horarios?: { nombre: string; dias: string }[] | null;
-  aulas?: { nombre: string }[] | null;
-  profesores?: { nombre_completo: string }[] | null;
+  cursos?: {
+    nombre: string;
+    precio: number | null;
+  }[] | null;
+  modalidades?: {
+    nombre: string;
+  }[] | null;
+  horarios?: {
+    nombre: string;
+    dias: string;
+  }[] | null;
+  aulas?: {
+    nombre: string;
+  }[] | null;
+  profesores?: {
+    nombre_completo: string;
+  }[] | null;
 };
 
 const estadosProgramacion = [
@@ -69,7 +79,7 @@ const estadosProgramacion = [
   "Cancelado",
 ];
 
-export default function ProgramacionesCursosPage() {
+export default function ProgramacionesCursosMovilPage() {
   const [programaciones, setProgramaciones] = useState<ProgramacionCurso[]>([]);
 
   const [cursos, setCursos] = useState<Curso[]>([]);
@@ -98,6 +108,7 @@ export default function ProgramacionesCursosPage() {
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("Todos");
   const [filtroCurso, setFiltroCurso] = useState("Todos");
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -115,40 +126,68 @@ export default function ProgramacionesCursosPage() {
     setLoading(true);
     setError("");
 
-    const [
-      cursosResponse,
-      modalidadesResponse,
-      horariosResponse,
-      aulasResponse,
-      profesoresResponse,
-      programacionesResponse,
-    ] = await Promise.all([
-      supabase
-        .from("cursos")
-        .select("id, nombre, precio, estado")
-        .order("nombre", { ascending: true }),
+    const { data: cursosData, error: cursosError } = await supabase
+      .from("cursos")
+      .select("id, nombre, precio, estado")
+      .order("nombre", { ascending: true });
 
-      supabase
-        .from("modalidades")
-        .select("id, nombre, estado")
-        .order("nombre", { ascending: true }),
+    if (cursosError) {
+      setError(`Error cargando cursos: ${cursosError.message}`);
+      setCursos([]);
+    } else {
+      setCursos(cursosData || []);
+    }
 
-      supabase
-        .from("horarios")
-        .select("id, nombre, dias, hora_inicio, hora_fin, estado")
-        .order("created_at", { ascending: false }),
+    const { data: modalidadesData, error: modalidadesError } = await supabase
+      .from("modalidades")
+      .select("id, nombre, estado")
+      .order("nombre", { ascending: true });
 
-      supabase
-        .from("aulas")
-        .select("id, nombre, capacidad, estado")
-        .order("nombre", { ascending: true }),
+    if (modalidadesError) {
+      setError(`Error cargando modalidades: ${modalidadesError.message}`);
+      setModalidades([]);
+    } else {
+      setModalidades(modalidadesData || []);
+    }
 
-      supabase
-        .from("profesores")
-        .select("id, nombre_completo, estado")
-        .order("nombre_completo", { ascending: true }),
+    const { data: horariosData, error: horariosError } = await supabase
+      .from("horarios")
+      .select("id, nombre, dias, estado")
+      .order("created_at", { ascending: false });
 
-      supabase
+    if (horariosError) {
+      setError(`Error cargando horarios: ${horariosError.message}`);
+      setHorarios([]);
+    } else {
+      setHorarios(horariosData || []);
+    }
+
+    const { data: aulasData, error: aulasError } = await supabase
+      .from("aulas")
+      .select("id, nombre, estado")
+      .order("nombre", { ascending: true });
+
+    if (aulasError) {
+      setError(`Error cargando aulas: ${aulasError.message}`);
+      setAulas([]);
+    } else {
+      setAulas(aulasData || []);
+    }
+
+    const { data: profesoresData, error: profesoresError } = await supabase
+      .from("profesores")
+      .select("id, nombre_completo, estado")
+      .order("nombre_completo", { ascending: true });
+
+    if (profesoresError) {
+      setError(`Error cargando profesores: ${profesoresError.message}`);
+      setProfesores([]);
+    } else {
+      setProfesores(profesoresData || []);
+    }
+
+    const { data: programacionesData, error: programacionesError } =
+      await supabase
         .from("programaciones_cursos")
         .select(
           `
@@ -185,47 +224,14 @@ export default function ProgramacionesCursosPage() {
           )
         `
         )
-        .order("created_at", { ascending: false }),
-    ]);
+        .order("created_at", { ascending: false });
 
-    if (cursosResponse.error) {
-      setError(`Error cargando cursos: ${cursosResponse.error.message}`);
-    } else {
-      setCursos(cursosResponse.data || []);
-    }
-
-    if (modalidadesResponse.error) {
-      setError(`Error cargando modalidades: ${modalidadesResponse.error.message}`);
-    } else {
-      setModalidades(modalidadesResponse.data || []);
-    }
-
-    if (horariosResponse.error) {
-      setError(`Error cargando horarios: ${horariosResponse.error.message}`);
-    } else {
-      setHorarios(horariosResponse.data || []);
-    }
-
-    if (aulasResponse.error) {
-      setError(`Error cargando aulas: ${aulasResponse.error.message}`);
-    } else {
-      setAulas(aulasResponse.data || []);
-    }
-
-    if (profesoresResponse.error) {
-      setError(`Error cargando profesores: ${profesoresResponse.error.message}`);
-    } else {
-      setProfesores(profesoresResponse.data || []);
-    }
-
-    if (programacionesResponse.error) {
-      console.error("Error Supabase:", programacionesResponse.error);
-      setError(`Error Supabase: ${programacionesResponse.error.message}`);
+    if (programacionesError) {
+      console.error("Error programaciones:", programacionesError);
+      setError(`Error Supabase: ${programacionesError.message}`);
       setProgramaciones([]);
     } else {
-      setProgramaciones(
-        (programacionesResponse.data || []) as ProgramacionCurso[]
-      );
+      setProgramaciones((programacionesData || []) as ProgramacionCurso[]);
     }
 
     setLoading(false);
@@ -247,6 +253,13 @@ export default function ProgramacionesCursosPage() {
     setProgramacionEditandoId(null);
   }
 
+  function abrirNuevo() {
+    limpiarFormulario();
+    setError("");
+    setMensaje("");
+    setMostrarFormulario(true);
+  }
+
   function iniciarEdicion(item: ProgramacionCurso) {
     setError("");
     setMensaje("");
@@ -264,19 +277,21 @@ export default function ProgramacionesCursosPage() {
     setPrecioEspecial(String(item.precio_especial ?? 0));
     setEstado(item.estado || "Programado");
     setObservacion(item.observacion || "");
+
+    setMostrarFormulario(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function cancelarEdicion() {
     limpiarFormulario();
     setError("");
     setMensaje("");
+    setMostrarFormulario(false);
   }
 
-  function formatearFecha(fecha: string | null) {
-    if (!fecha) return "-";
-
-    const [year, month, day] = fecha.split("-");
-    return `${day}/${month}/${year}`;
+  function usarPrecioCurso() {
+    const cursoSeleccionado = cursos.find((item) => item.id === cursoId);
+    setPrecioEspecial(String(cursoSeleccionado?.precio ?? 0));
   }
 
   function formatearMonto(valor: number | null | undefined) {
@@ -287,14 +302,14 @@ export default function ProgramacionesCursosPage() {
     }).format(Number(valor || 0));
   }
 
-  function obtenerPrecioBaseCurso() {
-    const curso = cursos.find((item) => item.id === cursoId);
-    return Number(curso?.precio || 0);
-  }
+  function formatearFecha(valor: string | null) {
+    if (!valor) return "-";
 
-  function usarPrecioCurso() {
-    const precio = obtenerPrecioBaseCurso();
-    setPrecioEspecial(String(precio));
+    const [year, month, day] = valor.split("-");
+
+    if (!year || !month || !day) return valor;
+
+    return `${day}/${month}/${year}`;
   }
 
   async function guardarProgramacion(e: React.FormEvent<HTMLFormElement>) {
@@ -329,17 +344,17 @@ export default function ProgramacionesCursosPage() {
     }
 
     if (!fechaInicio) {
-      setError("La fecha de inicio es obligatoria.");
+      setError("Debe indicar la fecha de inicio.");
       return;
     }
 
     if (!fechaFin) {
-      setError("La fecha de finalización es obligatoria.");
+      setError("Debe indicar la fecha de fin.");
       return;
     }
 
     if (fechaFin < fechaInicio) {
-      setError("La fecha de finalización no puede ser menor que la fecha de inicio.");
+      setError("La fecha de fin no puede ser menor que la fecha de inicio.");
       return;
     }
 
@@ -402,6 +417,7 @@ export default function ProgramacionesCursosPage() {
       } else {
         setMensaje("Programación actualizada correctamente.");
         limpiarFormulario();
+        setMostrarFormulario(false);
         await cargarDatos();
       }
     } else {
@@ -415,6 +431,7 @@ export default function ProgramacionesCursosPage() {
       } else {
         setMensaje("Programación registrada correctamente.");
         limpiarFormulario();
+        setMostrarFormulario(false);
         await cargarDatos();
       }
     }
@@ -438,7 +455,7 @@ export default function ProgramacionesCursosPage() {
       console.error("Error al actualizar estado:", error);
       setError(`Error al actualizar estado: ${error.message}`);
     } else {
-      setMensaje("Estado de la programación actualizado correctamente.");
+      setMensaje(`Programación actualizada a ${nuevoEstado}.`);
 
       if (programacionEditandoId === id) {
         setEstado(nuevoEstado);
@@ -449,10 +466,14 @@ export default function ProgramacionesCursosPage() {
   }
 
   const cursosActivos = cursos.filter((item) => item.estado === "Activo");
-  const modalidadesActivas = modalidades.filter((item) => item.estado === "Activo");
+  const modalidadesActivas = modalidades.filter(
+    (item) => item.estado === "Activo"
+  );
   const horariosActivos = horarios.filter((item) => item.estado === "Activo");
   const aulasActivas = aulas.filter((item) => item.estado === "Activo");
-  const profesoresActivos = profesores.filter((item) => item.estado === "Activo");
+  const profesoresActivos = profesores.filter(
+    (item) => item.estado === "Activo"
+  );
 
   const programacionesFiltradas = programaciones.filter((item) => {
     const texto = busqueda.toLowerCase();
@@ -460,6 +481,7 @@ export default function ProgramacionesCursosPage() {
     const nombreCurso = item.cursos?.[0]?.nombre || "";
     const nombreModalidad = item.modalidades?.[0]?.nombre || "";
     const nombreHorario = item.horarios?.[0]?.nombre || "";
+    const diasHorario = item.horarios?.[0]?.dias || "";
     const nombreAula = item.aulas?.[0]?.nombre || "";
     const nombreProfesor = item.profesores?.[0]?.nombre_completo || "";
 
@@ -467,9 +489,10 @@ export default function ProgramacionesCursosPage() {
       nombreCurso.toLowerCase().includes(texto) ||
       nombreModalidad.toLowerCase().includes(texto) ||
       nombreHorario.toLowerCase().includes(texto) ||
+      diasHorario.toLowerCase().includes(texto) ||
       nombreAula.toLowerCase().includes(texto) ||
       nombreProfesor.toLowerCase().includes(texto) ||
-      item.estado.toLowerCase().includes(texto);
+      (item.observacion || "").toLowerCase().includes(texto);
 
     const coincideEstado =
       filtroEstado === "Todos" || item.estado === filtroEstado;
@@ -481,175 +504,184 @@ export default function ProgramacionesCursosPage() {
   });
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
-                Fundación Dra. Carmen Pereyra
-              </p>
+    <main className="min-h-screen bg-slate-100 pb-24">
+      <section className="sticky top-0 z-20 border-b border-slate-200 bg-white px-4 py-4 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-blue-700">
+              Fundación Dra. Carmen Pereyra
+            </p>
 
-              <h1 className="mt-1 text-2xl font-bold text-slate-900">
-                Programaciones de cursos
-              </h1>
-
-              <p className="mt-1 text-sm text-slate-600">
-                Programe cursos con modalidad, horario, aula, profesor, fechas,
-                cupos y precio.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={cargarDatos}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
-            >
-              Actualizar
-            </button>
+            <h1 className="mt-1 text-xl font-black text-slate-900">
+              Programaciones
+            </h1>
           </div>
 
-          {mensaje && (
-            <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
-              {mensaje}
-            </div>
-          )}
+          <Link
+            href="/movil/catalogos"
+            className="rounded-full border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+          >
+            Menú
+          </Link>
+        </div>
 
-          {error && (
-            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-              {error}
-            </div>
-          )}
-        </section>
+        <p className="mt-2 text-sm text-slate-600">
+          Administre grupos, fechas, cupos, profesores y precios especiales.
+        </p>
+      </section>
 
-        <div className="grid gap-6 xl:grid-cols-3">
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900">
-              {estaEditando ? "Editar programación" : "Nueva programación"}
+      <section className="space-y-3 px-4 py-4">
+        {mensaje && (
+          <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
+            {mensaje}
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={abrirNuevo}
+            className="rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white shadow-sm active:scale-[0.99]"
+          >
+            + Nueva programación
+          </button>
+
+          <button
+            type="button"
+            onClick={cargarDatos}
+            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white shadow-sm active:scale-[0.99]"
+          >
+            Actualizar
+          </button>
+        </div>
+      </section>
+
+      {mostrarFormulario && (
+        <section className="px-4 pb-4">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-lg font-black text-slate-900">
+              {estaEditando
+                ? "Editar programación"
+                : "Nueva programación"}
             </h2>
 
             <p className="mt-1 text-sm text-slate-600">
-              {estaEditando
-                ? "Modifique los datos de la programación seleccionada."
-                : "Registre una nueva apertura o grupo de curso."}
+              Complete los datos del grupo o apertura del curso.
             </p>
 
             <form onSubmit={guardarProgramacion} className="mt-5 space-y-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label className="mb-1 block text-sm font-bold text-slate-700">
                   Curso
                 </label>
 
                 <select
                   value={cursoId}
                   onChange={(e) => setCursoId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="">Seleccione un curso</option>
-                  {cursosActivos.map((curso) => (
-                    <option key={curso.id} value={curso.id}>
-                      {curso.nombre}
+                  <option value="">Seleccione</option>
+                  {cursosActivos.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nombre}
                     </option>
                   ))}
                 </select>
-
-                {cursoId && (
-                  <div className="mt-2 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                    <span>Precio base: {formatearMonto(obtenerPrecioBaseCurso())}</span>
-                    <button
-                      type="button"
-                      onClick={usarPrecioCurso}
-                      className="font-semibold text-blue-700 hover:text-blue-900"
-                    >
-                      Usar precio
-                    </button>
-                  </div>
-                )}
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Modalidad
-                  </label>
+              <button
+                type="button"
+                onClick={usarPrecioCurso}
+                className="w-full rounded-2xl border border-blue-300 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700"
+              >
+                Usar precio del curso seleccionado
+              </button>
 
-                  <select
-                    value={modalidadId}
-                    onChange={(e) => setModalidadId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="">Seleccione</option>
-                    {modalidadesActivas.map((modalidad) => (
-                      <option key={modalidad.id} value={modalidad.id}>
-                        {modalidad.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Modalidad
+                </label>
 
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Horario
-                  </label>
-
-                  <select
-                    value={horarioId}
-                    onChange={(e) => setHorarioId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="">Seleccione</option>
-                    {horariosActivos.map((horario) => (
-                      <option key={horario.id} value={horario.id}>
-                        {horario.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  value={modalidadId}
+                  onChange={(e) => setModalidadId(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="">Seleccione</option>
+                  {modalidadesActivas.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nombre}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Aula / espacio
-                  </label>
+              <div>
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Horario
+                </label>
 
-                  <select
-                    value={aulaId}
-                    onChange={(e) => setAulaId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="">Seleccione</option>
-                    {aulasActivas.map((aula) => (
-                      <option key={aula.id} value={aula.id}>
-                        {aula.nombre} - Cap. {aula.capacidad ?? 0}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Profesor
-                  </label>
-
-                  <select
-                    value={profesorId}
-                    onChange={(e) => setProfesorId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="">Seleccione</option>
-                    {profesoresActivos.map((profesor) => (
-                      <option key={profesor.id} value={profesor.id}>
-                        {profesor.nombre_completo}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  value={horarioId}
+                  onChange={(e) => setHorarioId(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="">Seleccione</option>
+                  {horariosActivos.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nombre}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Aula / Espacio
+                </label>
+
+                <select
+                  value={aulaId}
+                  onChange={(e) => setAulaId(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="">Seleccione</option>
+                  {aulasActivas.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Profesor
+                </label>
+
+                <select
+                  value={profesorId}
+                  onChange={(e) => setProfesorId(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="">Seleccione</option>
+                  {profesoresActivos.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nombre_completo}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
                     Fecha inicio
                   </label>
 
@@ -657,12 +689,12 @@ export default function ProgramacionesCursosPage() {
                     type="date"
                     value={fechaInicio}
                     onChange={(e) => setFechaInicio(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
                     Fecha fin
                   </label>
 
@@ -670,14 +702,14 @@ export default function ProgramacionesCursosPage() {
                     type="date"
                     value={fechaFin}
                     onChange={(e) => setFechaFin(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
                     Cupo máximo
                   </label>
 
@@ -686,12 +718,12 @@ export default function ProgramacionesCursosPage() {
                     min="0"
                     value={cupoMaximo}
                     onChange={(e) => setCupoMaximo(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
                     Cupo disponible
                   </label>
 
@@ -700,35 +732,35 @@ export default function ProgramacionesCursosPage() {
                     min="0"
                     value={cupoDisponible}
                     onChange={(e) => setCupoDisponible(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Precio
-                  </label>
-
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={precioEspecial}
-                    onChange={(e) => setPrecioEspecial(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Precio especial
+                </label>
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={precioEspecial}
+                  onChange={(e) => setPrecioEspecial(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-bold text-slate-700">
                   Estado
                 </label>
 
                 <select
                   value={estado}
                   onChange={(e) => setEstado(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                 >
                   {estadosProgramacion.map((item) => (
                     <option key={item} value={item}>
@@ -739,24 +771,24 @@ export default function ProgramacionesCursosPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label className="mb-1 block text-sm font-bold text-slate-700">
                   Observación
                 </label>
 
                 <textarea
                   value={observacion}
                   onChange={(e) => setObservacion(e.target.value)}
-                  placeholder="Notas internas de la programación"
-                  rows={3}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                  placeholder="Observación interna"
+                  rows={4}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
 
-              <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-1 gap-3">
                 <button
                   type="submit"
                   disabled={guardando}
-                  className="w-full rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-2xl bg-blue-700 px-4 py-3 text-base font-black text-white shadow-sm disabled:opacity-60"
                 >
                   {guardando
                     ? estaEditando
@@ -767,188 +799,208 @@ export default function ProgramacionesCursosPage() {
                     : "Guardar programación"}
                 </button>
 
-                {estaEditando && (
+                <button
+                  type="button"
+                  onClick={cancelarEdicion}
+                  className="rounded-2xl border border-slate-300 px-4 py-3 text-base font-black text-slate-700"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+      )}
+
+      <section className="px-4 pb-4">
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 className="text-base font-black text-slate-900">
+            Buscar y filtrar
+          </h2>
+
+          <div className="mt-4 space-y-3">
+            <input
+              type="text"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar curso, profesor, aula o modalidad"
+              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+            />
+
+            <select
+              value={filtroCurso}
+              onChange={(e) => setFiltroCurso(e.target.value)}
+              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="Todos">Todos los cursos</option>
+              {cursos.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.nombre}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={filtroEstado}
+              onChange={(e) => setFiltroEstado(e.target.value)}
+              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="Todos">Todos los estados</option>
+              {estadosProgramacion.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-3 px-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-black text-slate-900">
+            Programaciones registradas
+          </h2>
+
+          <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-black text-slate-700">
+            {programacionesFiltradas.length}
+          </span>
+        </div>
+
+        {loading ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 text-center text-sm font-semibold text-slate-500">
+            Cargando programaciones...
+          </div>
+        ) : programacionesFiltradas.length === 0 ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 text-center text-sm font-semibold text-slate-500">
+            No hay programaciones registradas.
+          </div>
+        ) : (
+          programacionesFiltradas.map((item) => (
+            <article
+              key={item.id}
+              className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="text-lg font-black text-slate-900">
+                    {item.cursos?.[0]?.nombre || "Sin curso"}
+                  </h3>
+
+                  <p className="mt-1 text-sm text-slate-600">
+                    {item.profesores?.[0]?.nombre_completo || "Sin profesor"}
+                  </p>
+
+                  <p className="mt-1 text-xs font-bold text-blue-700">
+                    {item.modalidades?.[0]?.nombre || "Sin modalidad"}
+                  </p>
+                </div>
+
+                <span
+                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${
+                    item.estado === "Abierto"
+                      ? "bg-green-100 text-green-700"
+                      : item.estado === "Cancelado" ||
+                        item.estado === "Suspendido"
+                      ? "bg-red-100 text-red-700"
+                      : item.estado === "Finalizado"
+                      ? "bg-slate-200 text-slate-700"
+                      : "bg-blue-100 text-blue-700"
+                  }`}
+                >
+                  {item.estado}
+                </span>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-slate-50 p-3">
+                  <p className="text-[11px] font-bold uppercase text-slate-400">
+                    Inicio
+                  </p>
+                  <p className="mt-1 text-sm font-black text-slate-900">
+                    {formatearFecha(item.fecha_inicio)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 p-3">
+                  <p className="text-[11px] font-bold uppercase text-slate-400">
+                    Fin
+                  </p>
+                  <p className="mt-1 text-sm font-black text-slate-900">
+                    {formatearFecha(item.fecha_fin)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-blue-50 p-3">
+                  <p className="text-[11px] font-bold uppercase text-blue-500">
+                    Cupos
+                  </p>
+                  <p className="mt-1 text-sm font-black text-blue-900">
+                    {item.cupo_disponible ?? 0} / {item.cupo_maximo ?? 0}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-green-50 p-3">
+                  <p className="text-[11px] font-bold uppercase text-green-500">
+                    Precio
+                  </p>
+                  <p className="mt-1 text-sm font-black text-green-900">
+                    {formatearMonto(item.precio_especial)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl bg-slate-50 p-3">
+                <p className="text-[11px] font-bold uppercase text-slate-400">
+                  Horario / Aula
+                </p>
+
+                <p className="mt-1 text-sm font-black text-slate-900">
+                  {item.horarios?.[0]?.nombre || "Sin horario"}
+                </p>
+
+                <p className="mt-1 text-sm text-slate-600">
+                  {item.aulas?.[0]?.nombre || "Sin aula"}
+                </p>
+              </div>
+
+              {item.observacion && (
+                <p className="mt-3 rounded-2xl bg-amber-50 p-3 text-sm leading-5 text-amber-800">
+                  {item.observacion}
+                </p>
+              )}
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => iniciarEdicion(item)}
+                  className="rounded-2xl border border-blue-300 px-4 py-3 text-sm font-black text-blue-700 active:scale-[0.99]"
+                >
+                  Editar
+                </button>
+
+                {item.estado === "Cancelado" ? (
                   <button
                     type="button"
-                    onClick={cancelarEdicion}
-                    className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    onClick={() => cambiarEstado(item.id, "Programado")}
+                    className="rounded-2xl border border-green-300 px-4 py-3 text-sm font-black text-green-700 active:scale-[0.99]"
                   >
-                    Cancelar edición
+                    Reabrir
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => cambiarEstado(item.id, "Cancelado")}
+                    className="rounded-2xl border border-red-300 px-4 py-3 text-sm font-black text-red-700 active:scale-[0.99]"
+                  >
+                    Cancelar
                   </button>
                 )}
               </div>
-            </form>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                Listado de programaciones
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-600">
-                Total registradas: {programacionesFiltradas.length}
-              </p>
-            </div>
-
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
-              <input
-                type="text"
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar programación"
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-              />
-
-              <select
-                value={filtroEstado}
-                onChange={(e) => setFiltroEstado(e.target.value)}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-              >
-                <option value="Todos">Todos los estados</option>
-                {estadosProgramacion.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={filtroCurso}
-                onChange={(e) => setFiltroCurso(e.target.value)}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-              >
-                <option value="Todos">Todos los cursos</option>
-                {cursos.map((curso) => (
-                  <option key={curso.id} value={curso.id}>
-                    {curso.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="mt-5 overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b bg-slate-100 text-left text-slate-700">
-                    <th className="px-3 py-3 font-semibold">Curso</th>
-                    <th className="px-3 py-3 font-semibold">Datos</th>
-                    <th className="px-3 py-3 font-semibold">Fechas</th>
-                    <th className="px-3 py-3 font-semibold">Cupos</th>
-                    <th className="px-3 py-3 font-semibold">Precio</th>
-                    <th className="px-3 py-3 font-semibold">Estado</th>
-                    <th className="px-3 py-3 font-semibold">Acciones</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="px-3 py-6 text-center text-slate-500"
-                      >
-                        Cargando programaciones...
-                      </td>
-                    </tr>
-                  ) : programacionesFiltradas.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="px-3 py-6 text-center text-slate-500"
-                      >
-                        No hay programaciones registradas.
-                      </td>
-                    </tr>
-                  ) : (
-                    programacionesFiltradas.map((item) => (
-                      <tr key={item.id} className="border-b hover:bg-slate-50">
-                        <td className="px-3 py-3">
-                          <p className="font-medium text-slate-900">
-                            {item.cursos?.[0]?.nombre || "Sin curso"}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {item.modalidades?.[0]?.nombre || "Sin modalidad"}
-                          </p>
-                        </td>
-
-                        <td className="px-3 py-3 text-slate-600">
-                          <p>{item.horarios?.[0]?.nombre || "Sin horario"}</p>
-                          <p className="text-xs">
-                            Aula: {item.aulas?.[0]?.nombre || "-"}
-                          </p>
-                          <p className="text-xs">
-                            Profesor:{" "}
-                            {item.profesores?.[0]?.nombre_completo || "-"}
-                          </p>
-                        </td>
-
-                        <td className="px-3 py-3 text-slate-600">
-                          <p>Inicio: {formatearFecha(item.fecha_inicio)}</p>
-                          <p className="text-xs">
-                            Fin: {formatearFecha(item.fecha_fin)}
-                          </p>
-                        </td>
-
-                        <td className="px-3 py-3 text-slate-600">
-                          <p>Máx: {item.cupo_maximo ?? 0}</p>
-                          <p className="text-xs">
-                            Disp: {item.cupo_disponible ?? 0}
-                          </p>
-                        </td>
-
-                        <td className="px-3 py-3 text-slate-600">
-                          {formatearMonto(item.precio_especial)}
-                        </td>
-
-                        <td className="px-3 py-3">
-                          <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                            {item.estado}
-                          </span>
-                        </td>
-
-                        <td className="px-3 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => iniciarEdicion(item)}
-                              className="rounded-lg border border-blue-300 px-3 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
-                            >
-                              Editar
-                            </button>
-
-                            {item.estado !== "Cancelado" ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  cambiarEstado(item.id, "Cancelado")
-                                }
-                                className="rounded-lg border border-red-300 px-3 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-50"
-                              >
-                                Cancelar
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  cambiarEstado(item.id, "Programado")
-                                }
-                                className="rounded-lg border border-green-300 px-3 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-50"
-                              >
-                                Reabrir
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
-      </div>
+            </article>
+          ))
+        )}
+      </section>
     </main>
   );
 }
