@@ -12,21 +12,11 @@ type Modulo = {
 const modulosPrincipales: Modulo[] = [
   {
     titulo: "Inscripciones",
-    descripcion:
-      "Consultar solicitudes, aprobar estudiantes y revisar documentos.",
+    descripcion: "Consultar solicitudes, aprobar estudiantes y revisar documentos.",
     href: "/inscripciones",
     icono: "📝",
     color: "from-blue-600 to-blue-800",
     recomendado: "Inicio del proceso",
-  },
-  {
-    titulo: "Reporte de inscripciones",
-    descripcion:
-      "Reporte simple para dar seguimiento a estudiantes, documentos y pagos.",
-    href: "/reportes/inscripciones",
-    icono: "📊",
-    color: "from-sky-600 to-sky-800",
-    recomendado: "Seguimiento",
   },
   {
     titulo: "Pagos",
@@ -43,15 +33,6 @@ const modulosPrincipales: Modulo[] = [
     color: "from-cyan-600 to-cyan-800",
   },
   {
-    titulo: "Calificaciones",
-    descripcion:
-      "Registrar nota práctica, nota teórica, nota final y estado académico.",
-    href: "/calificaciones",
-    icono: "🧾",
-    color: "from-lime-600 to-green-800",
-    recomendado: "Antes de certificar",
-  },
-  {
     titulo: "Remitidos INFOTEP",
     descripcion: "Generar lista de remitidos a inicio de acción formativa.",
     href: "/remitidos",
@@ -60,12 +41,11 @@ const modulosPrincipales: Modulo[] = [
   },
   {
     titulo: "Aprobación certificados",
-    descripcion:
-      "Validar documentos, pagos, asistencia, calificaciones y remitidos antes de certificar.",
+    descripcion: "Validar documentos, pagos, asistencia y remitidos antes de certificar.",
     href: "/certificados/aprobacion",
     icono: "🎓",
     color: "from-amber-500 to-orange-700",
-    recomendado: "Filtro final",
+    recomendado: "Antes de emitir",
   },
   {
     titulo: "Certificados",
@@ -76,8 +56,7 @@ const modulosPrincipales: Modulo[] = [
   },
   {
     titulo: "Catálogos",
-    descripcion:
-      "Mantener cursos, profesores, horarios, aulas y demás configuraciones.",
+    descripcion: "Mantener cursos, profesores, horarios, aulas y demás configuraciones.",
     href: "/catalogos",
     icono: "⚙️",
     color: "from-slate-700 to-slate-950",
@@ -96,7 +75,6 @@ const flujo = [
   "Documentos",
   "Pago",
   "Asistencia",
-  "Calificaciones",
   "Remitido INFOTEP",
   "Aprobación",
   "Certificado",
@@ -119,8 +97,7 @@ export default function DashboardPage() {
 
               <p className="mt-3 max-w-3xl text-sm font-semibold leading-relaxed text-blue-100 md:text-base">
                 Menú principal para administrar inscripciones, pagos,
-                asistencias, calificaciones, remitidos INFOTEP, aprobaciones y
-                certificados.
+                asistencias, remitidos INFOTEP, aprobaciones y certificados.
               </p>
             </div>
 
@@ -212,9 +189,7 @@ export default function DashboardPage() {
 
                 <div className="mt-5 inline-flex items-center gap-2 text-sm font-black text-blue-700">
                   Entrar al módulo
-                  <span className="transition group-hover:translate-x-1">
-                    →
-                  </span>
+                  <span className="transition group-hover:translate-x-1">→</span>
                 </div>
               </Link>
             ))}
@@ -222,41 +197,39 @@ export default function DashboardPage() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-[28px] border border-blue-100 bg-blue-50 p-5">
-            <div className="text-3xl">📊</div>
+          <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-3xl">👩‍🎓</div>
             <h3 className="mt-3 text-lg font-black text-slate-900">
-              Seguimiento rápido
+              Acceso estudiantes
             </h3>
             <p className="mt-2 text-sm font-semibold text-slate-500">
-              Consulte el reporte simple de inscripciones para revisar estados,
-              documentos y pagos.
+              Portal para cursos disponibles, inscripción, consulta y documentos.
             </p>
             <Link
-              href="/reportes/inscripciones"
+              href="/estudiantes"
               className="mt-4 block rounded-2xl bg-blue-700 px-4 py-3 text-center text-sm font-black text-white hover:bg-blue-800"
             >
-              Ver reporte
+              Ir al portal estudiantes
             </Link>
           </div>
 
-          <div className="rounded-[28px] border border-emerald-100 bg-emerald-50 p-5">
-            <div className="text-3xl">🧾</div>
+          <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-3xl">👨‍🏫</div>
             <h3 className="mt-3 text-lg font-black text-slate-900">
-              Calificaciones
+              Acceso profesores
             </h3>
             <p className="mt-2 text-sm font-semibold text-slate-500">
-              Registre las notas de los participantes antes de la aprobación
-              para certificado.
+              Entrada de profesores para ver cursos asignados y registrar asistencia.
             </p>
             <Link
-              href="/calificaciones"
-              className="mt-4 block rounded-2xl bg-emerald-700 px-4 py-3 text-center text-sm font-black text-white hover:bg-emerald-800"
+              href="/profesor"
+              className="mt-4 block rounded-2xl bg-slate-900 px-4 py-3 text-center text-sm font-black text-white hover:bg-slate-800"
             >
-              Ir a calificaciones
+              Ir al acceso profesor
             </Link>
           </div>
 
-          <div className="rounded-[28px] border border-slate-200 bg-white p-5">
+          <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="text-3xl">⚙️</div>
             <h3 className="mt-3 text-lg font-black text-slate-900">
               Configuración
