@@ -1,17 +1,5 @@
-"use client";
-
+import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-
-type ConfiguracionSistema = {
-  id: string;
-  nombre_institucion: string | null;
-  logo_url: string | null;
-  telefono: string | null;
-  correo: string | null;
-  direccion: string | null;
-};
 
 const accesos = [
   {
@@ -44,36 +32,6 @@ const accesos = [
 ];
 
 export default function HomePage() {
-  const [configuracion, setConfiguracion] =
-    useState<ConfiguracionSistema | null>(null);
-
-  const [logoError, setLogoError] = useState(false);
-
-  useEffect(() => {
-    cargarConfiguracion();
-  }, []);
-
-  async function cargarConfiguracion() {
-    const { data, error } = await supabase
-      .from("configuracion_sistema")
-      .select("id, nombre_institucion, logo_url, telefono, correo, direccion")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Error cargando configuración:", error);
-      return;
-    }
-
-    setConfiguracion(data as ConfiguracionSistema | null);
-  }
-
-  const nombreInstitucion =
-    configuracion?.nombre_institucion || "Fundación Dra. Carmen Pereyra";
-
-  const logoUrl = configuracion?.logo_url || "/logo-fundacion.png";
-
   return (
     <main className="min-h-screen bg-slate-100 p-4 md:p-8">
       <section className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl flex-col justify-center space-y-8">
@@ -81,19 +39,15 @@ export default function HomePage() {
           <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
             <div>
               <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center">
-                <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-3xl bg-white p-3 shadow-xl ring-1 ring-white/30">
-                  {!logoError && logoUrl ? (
-                    <img
-                      src={logoUrl}
-                      alt={`Logo ${nombreInstitucion}`}
-                      className="h-full w-full object-contain"
-                      onError={() => setLogoError(true)}
-                    />
-                  ) : (
-                    <div className="grid h-full w-full place-items-center rounded-2xl bg-blue-50 text-center text-xs font-black text-blue-900">
-                      LOGO
-                    </div>
-                  )}
+                <div className="grid h-28 w-28 shrink-0 place-items-center rounded-3xl bg-white p-3 shadow-xl ring-1 ring-white/30">
+                  <Image
+                    src="/logo-fundacion.png"
+                    alt="Logo Fundación Dra. Carmen Pereyra"
+                    width={110}
+                    height={110}
+                    className="h-full w-full object-contain"
+                    priority
+                  />
                 </div>
 
                 <div>
@@ -102,19 +56,13 @@ export default function HomePage() {
                   </p>
 
                   <p className="mt-2 text-base font-bold text-blue-100">
-                    {nombreInstitucion}
+                    Fundación Dra. Carmen Pereyra
                   </p>
-
-                  {configuracion?.logo_url && (
-                    <p className="mt-1 text-xs font-semibold text-blue-200">
-                      Logo cargado desde configuración
-                    </p>
-                  )}
                 </div>
               </div>
 
               <h1 className="mt-5 text-4xl font-black leading-tight md:text-6xl">
-                {nombreInstitucion}
+                Fundación Dra. Carmen Pereyra
               </h1>
 
               <p className="mt-5 max-w-3xl text-base font-semibold leading-relaxed text-blue-100 md:text-lg">
@@ -224,7 +172,6 @@ export default function HomePage() {
             <p className="text-sm font-black uppercase tracking-wide text-blue-700">
               Para estudiantes
             </p>
-
             <p className="mt-2 text-sm font-semibold leading-relaxed text-blue-950">
               El estudiante podrá inscribirse, consultar su proceso, subir sus
               documentos y acceder a su formulario.
@@ -235,7 +182,6 @@ export default function HomePage() {
             <p className="text-sm font-black uppercase tracking-wide text-slate-700">
               Para administradores
             </p>
-
             <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
               Administración tendrá control completo del expediente académico,
               pagos, asistencias, INFOTEP y certificados.
@@ -246,7 +192,6 @@ export default function HomePage() {
             <p className="text-sm font-black uppercase tracking-wide text-emerald-700">
               Para profesores
             </p>
-
             <p className="mt-2 text-sm font-semibold leading-relaxed text-emerald-950">
               El profesor podrá entrar con su código, consultar sus cursos y
               registrar asistencia por fecha.

@@ -1,44 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type Curso = {
+type CatalogoSimple = {
   id: string;
   nombre: string;
-  precio: number | null;
-  estado: string;
-};
-
-type Modalidad = {
-  id: string;
-  nombre: string;
-  estado: string;
-};
-
-type Horario = {
-  id: string;
-  nombre: string;
-  dias: string;
-  hora_inicio: string;
-  hora_fin: string;
-  estado: string;
-};
-
-type Aula = {
-  id: string;
-  nombre: string;
-  capacidad: number | null;
-  estado: string;
 };
 
 type Profesor = {
   id: string;
   nombre_completo: string;
-  estado: string;
 };
 
-type ProgramacionCurso = {
+type Programacion = {
   id: string;
   curso_id: string | null;
   modalidad_id: string | null;
@@ -50,33 +26,73 @@ type ProgramacionCurso = {
   cupo_maximo: number | null;
   cupo_disponible: number | null;
   precio_especial: number | null;
-  estado: string;
+  estrategia_formacion: string | null;
+  nivel_certificacion: string | null;
+  asesor_responsable: string | null;
+  estado: string | null;
   observacion: string | null;
-  created_at: string;
-  cursos?: { nombre: string; precio: number | null }[] | null;
-  modalidades?: { nombre: string }[] | null;
-  horarios?: { nombre: string; dias: string }[] | null;
-  aulas?: { nombre: string }[] | null;
-  profesores?: { nombre_completo: string }[] | null;
+  created_at: string | null;
+  cursos:
+    | {
+        nombre: string;
+        codigo: string | null;
+      }
+    | {
+        nombre: string;
+        codigo: string | null;
+      }[]
+    | null;
+  modalidades:
+    | {
+        nombre: string;
+      }
+    | {
+        nombre: string;
+      }[]
+    | null;
+  horarios:
+    | {
+        nombre: string;
+        dias: string | null;
+      }
+    | {
+        nombre: string;
+        dias: string | null;
+      }[]
+    | null;
+  aulas:
+    | {
+        nombre: string;
+      }
+    | {
+        nombre: string;
+      }[]
+    | null;
+  profesores:
+    | {
+        nombre_completo: string;
+      }
+    | {
+        nombre_completo: string;
+      }[]
+    | null;
 };
 
-const estadosProgramacion = [
-  "Programado",
-  "Abierto",
-  "En curso",
-  "Finalizado",
-  "Suspendido",
-  "Cancelado",
-];
+function obtenerPrimero<T>(valor: T | T[] | null | undefined): T | null {
+  if (!valor) return null;
+  if (Array.isArray(valor)) return valor[0] || null;
+  return valor;
+}
 
 export default function ProgramacionesCursosPage() {
-  const [programaciones, setProgramaciones] = useState<ProgramacionCurso[]>([]);
-
-  const [cursos, setCursos] = useState<Curso[]>([]);
-  const [modalidades, setModalidades] = useState<Modalidad[]>([]);
-  const [horarios, setHorarios] = useState<Horario[]>([]);
-  const [aulas, setAulas] = useState<Aula[]>([]);
+  const [programaciones, setProgramaciones] = useState<Programacion[]>([]);
+  const [cursos, setCursos] = useState<CatalogoSimple[]>([]);
+  const [modalidades, setModalidades] = useState<CatalogoSimple[]>([]);
+  const [horarios, setHorarios] = useState<CatalogoSimple[]>([]);
+  const [aulas, setAulas] = useState<CatalogoSimple[]>([]);
   const [profesores, setProfesores] = useState<Profesor[]>([]);
+
+  const [editandoId, setEditandoId] = useState("");
 
   const [cursoId, setCursoId] = useState("");
   const [modalidadId, setModalidadId] = useState("");
@@ -85,27 +101,20 @@ export default function ProgramacionesCursosPage() {
   const [profesorId, setProfesorId] = useState("");
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
-  const [cupoMaximo, setCupoMaximo] = useState("0");
-  const [cupoDisponible, setCupoDisponible] = useState("0");
-  const [precioEspecial, setPrecioEspecial] = useState("0");
-  const [estado, setEstado] = useState("Programado");
+  const [cupoMaximo, setCupoMaximo] = useState("");
+  const [cupoDisponible, setCupoDisponible] = useState("");
+  const [precioEspecial, setPrecioEspecial] = useState("");
+  const [estrategiaFormacion, setEstrategiaFormacion] = useState("");
+  const [nivelCertificacion, setNivelCertificacion] = useState("");
+  const [asesorResponsable, setAsesorResponsable] = useState("");
+  const [estado, setEstado] = useState("Abierto");
   const [observacion, setObservacion] = useState("");
 
-  const [programacionEditandoId, setProgramacionEditandoId] = useState<
-    string | null
-  >(null);
-
   const [busqueda, setBusqueda] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState("Todos");
-  const [filtroCurso, setFiltroCurso] = useState("Todos");
-
   const [loading, setLoading] = useState(false);
   const [guardando, setGuardando] = useState(false);
-
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
-
-  const estaEditando = Boolean(programacionEditandoId);
 
   useEffect(() => {
     cargarDatos();
@@ -115,123 +124,110 @@ export default function ProgramacionesCursosPage() {
     setLoading(true);
     setError("");
 
-    const [
-      cursosResponse,
-      modalidadesResponse,
-      horariosResponse,
-      aulasResponse,
-      profesoresResponse,
-      programacionesResponse,
-    ] = await Promise.all([
-      supabase
-        .from("cursos")
-        .select("id, nombre, precio, estado")
-        .order("nombre", { ascending: true }),
-
-      supabase
-        .from("modalidades")
-        .select("id, nombre, estado")
-        .order("nombre", { ascending: true }),
-
-      supabase
-        .from("horarios")
-        .select("id, nombre, dias, hora_inicio, hora_fin, estado")
-        .order("created_at", { ascending: false }),
-
-      supabase
-        .from("aulas")
-        .select("id, nombre, capacidad, estado")
-        .order("nombre", { ascending: true }),
-
-      supabase
-        .from("profesores")
-        .select("id, nombre_completo, estado")
-        .order("nombre_completo", { ascending: true }),
-
-      supabase
-        .from("programaciones_cursos")
-        .select(
-          `
-          id,
-          curso_id,
-          modalidad_id,
-          horario_id,
-          aula_id,
-          profesor_id,
-          fecha_inicio,
-          fecha_fin,
-          cupo_maximo,
-          cupo_disponible,
-          precio_especial,
-          estado,
-          observacion,
-          created_at,
-          cursos (
-            nombre,
-            precio
-          ),
-          modalidades (
-            nombre
-          ),
-          horarios (
-            nombre,
-            dias
-          ),
-          aulas (
-            nombre
-          ),
-          profesores (
-            nombre_completo
-          )
-        `
-        )
-        .order("created_at", { ascending: false }),
+    await Promise.all([
+      cargarCatalogos(),
+      cargarProgramaciones(),
     ]);
-
-    if (cursosResponse.error) {
-      setError(`Error cargando cursos: ${cursosResponse.error.message}`);
-    } else {
-      setCursos(cursosResponse.data || []);
-    }
-
-    if (modalidadesResponse.error) {
-      setError(`Error cargando modalidades: ${modalidadesResponse.error.message}`);
-    } else {
-      setModalidades(modalidadesResponse.data || []);
-    }
-
-    if (horariosResponse.error) {
-      setError(`Error cargando horarios: ${horariosResponse.error.message}`);
-    } else {
-      setHorarios(horariosResponse.data || []);
-    }
-
-    if (aulasResponse.error) {
-      setError(`Error cargando aulas: ${aulasResponse.error.message}`);
-    } else {
-      setAulas(aulasResponse.data || []);
-    }
-
-    if (profesoresResponse.error) {
-      setError(`Error cargando profesores: ${profesoresResponse.error.message}`);
-    } else {
-      setProfesores(profesoresResponse.data || []);
-    }
-
-    if (programacionesResponse.error) {
-      console.error("Error Supabase:", programacionesResponse.error);
-      setError(`Error Supabase: ${programacionesResponse.error.message}`);
-      setProgramaciones([]);
-    } else {
-      setProgramaciones(
-        (programacionesResponse.data || []) as ProgramacionCurso[]
-      );
-    }
 
     setLoading(false);
   }
 
+  async function cargarCatalogos() {
+    const { data: cursosData } = await supabase
+      .from("cursos")
+      .select("id, nombre")
+      .eq("estado", "Activo")
+      .order("nombre", { ascending: true });
+
+    setCursos((cursosData || []) as CatalogoSimple[]);
+
+    const { data: modalidadesData } = await supabase
+      .from("modalidades")
+      .select("id, nombre")
+      .eq("estado", "Activo")
+      .order("nombre", { ascending: true });
+
+    setModalidades((modalidadesData || []) as CatalogoSimple[]);
+
+    const { data: horariosData } = await supabase
+      .from("horarios")
+      .select("id, nombre")
+      .eq("estado", "Activo")
+      .order("nombre", { ascending: true });
+
+    setHorarios((horariosData || []) as CatalogoSimple[]);
+
+    const { data: aulasData } = await supabase
+      .from("aulas")
+      .select("id, nombre")
+      .eq("estado", "Activo")
+      .order("nombre", { ascending: true });
+
+    setAulas((aulasData || []) as CatalogoSimple[]);
+
+    const { data: profesoresData } = await supabase
+      .from("profesores")
+      .select("id, nombre_completo")
+      .eq("estado", "Activo")
+      .order("nombre_completo", { ascending: true });
+
+    setProfesores((profesoresData || []) as Profesor[]);
+  }
+
+  async function cargarProgramaciones() {
+    const { data, error } = await supabase
+      .from("programaciones_cursos")
+      .select(
+        `
+        id,
+        curso_id,
+        modalidad_id,
+        horario_id,
+        aula_id,
+        profesor_id,
+        fecha_inicio,
+        fecha_fin,
+        cupo_maximo,
+        cupo_disponible,
+        precio_especial,
+        estrategia_formacion,
+        nivel_certificacion,
+        asesor_responsable,
+        estado,
+        observacion,
+        created_at,
+        cursos (
+          nombre,
+          codigo
+        ),
+        modalidades (
+          nombre
+        ),
+        horarios (
+          nombre,
+          dias
+        ),
+        aulas (
+          nombre
+        ),
+        profesores (
+          nombre_completo
+        )
+      `
+      )
+      .order("fecha_inicio", { ascending: false });
+
+    if (error) {
+      console.error("Error cargando programaciones:", error);
+      setError(`Error cargando programaciones: ${error.message}`);
+      setProgramaciones([]);
+    } else {
+      setProgramaciones((data || []) as Programacion[]);
+    }
+  }
+
   function limpiarFormulario() {
+    setEditandoId("");
     setCursoId("");
     setModalidadId("");
     setHorarioId("");
@@ -239,19 +235,18 @@ export default function ProgramacionesCursosPage() {
     setProfesorId("");
     setFechaInicio("");
     setFechaFin("");
-    setCupoMaximo("0");
-    setCupoDisponible("0");
-    setPrecioEspecial("0");
-    setEstado("Programado");
+    setCupoMaximo("");
+    setCupoDisponible("");
+    setPrecioEspecial("");
+    setEstrategiaFormacion("");
+    setNivelCertificacion("");
+    setAsesorResponsable("");
+    setEstado("Abierto");
     setObservacion("");
-    setProgramacionEditandoId(null);
   }
 
-  function iniciarEdicion(item: ProgramacionCurso) {
-    setError("");
-    setMensaje("");
-
-    setProgramacionEditandoId(item.id);
+  function editarProgramacion(item: Programacion) {
+    setEditandoId(item.id);
     setCursoId(item.curso_id || "");
     setModalidadId(item.modalidad_id || "");
     setHorarioId(item.horario_id || "");
@@ -259,42 +254,23 @@ export default function ProgramacionesCursosPage() {
     setProfesorId(item.profesor_id || "");
     setFechaInicio(item.fecha_inicio || "");
     setFechaFin(item.fecha_fin || "");
-    setCupoMaximo(String(item.cupo_maximo ?? 0));
-    setCupoDisponible(String(item.cupo_disponible ?? 0));
-    setPrecioEspecial(String(item.precio_especial ?? 0));
-    setEstado(item.estado || "Programado");
+    setCupoMaximo(item.cupo_maximo !== null ? String(item.cupo_maximo) : "");
+    setCupoDisponible(
+      item.cupo_disponible !== null ? String(item.cupo_disponible) : ""
+    );
+    setPrecioEspecial(
+      item.precio_especial !== null ? String(item.precio_especial) : ""
+    );
+    setEstrategiaFormacion(item.estrategia_formacion || "");
+    setNivelCertificacion(item.nivel_certificacion || "");
+    setAsesorResponsable(item.asesor_responsable || "");
+    setEstado(item.estado || "Abierto");
     setObservacion(item.observacion || "");
-  }
 
-  function cancelarEdicion() {
-    limpiarFormulario();
-    setError("");
-    setMensaje("");
-  }
-
-  function formatearFecha(fecha: string | null) {
-    if (!fecha) return "-";
-
-    const [year, month, day] = fecha.split("-");
-    return `${day}/${month}/${year}`;
-  }
-
-  function formatearMonto(valor: number | null | undefined) {
-    return new Intl.NumberFormat("es-DO", {
-      style: "currency",
-      currency: "DOP",
-      minimumFractionDigits: 2,
-    }).format(Number(valor || 0));
-  }
-
-  function obtenerPrecioBaseCurso() {
-    const curso = cursos.find((item) => item.id === cursoId);
-    return Number(curso?.precio || 0);
-  }
-
-  function usarPrecioCurso() {
-    const precio = obtenerPrecioBaseCurso();
-    setPrecioEspecial(String(precio));
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
 
   async function guardarProgramacion(e: React.FormEvent<HTMLFormElement>) {
@@ -304,66 +280,49 @@ export default function ProgramacionesCursosPage() {
     setMensaje("");
 
     if (!cursoId) {
-      setError("Debe seleccionar un curso.");
+      setError("Debe seleccionar el curso.");
       return;
     }
 
     if (!modalidadId) {
-      setError("Debe seleccionar una modalidad.");
+      setError("Debe seleccionar la modalidad.");
       return;
     }
 
     if (!horarioId) {
-      setError("Debe seleccionar un horario.");
+      setError("Debe seleccionar el horario.");
       return;
     }
 
     if (!aulaId) {
-      setError("Debe seleccionar un aula o espacio.");
+      setError("Debe seleccionar el aula o lugar.");
       return;
     }
 
     if (!profesorId) {
-      setError("Debe seleccionar un profesor.");
+      setError("Debe seleccionar el facilitador/profesor.");
       return;
     }
 
     if (!fechaInicio) {
-      setError("La fecha de inicio es obligatoria.");
+      setError("Debe indicar la fecha de inicio.");
       return;
     }
 
     if (!fechaFin) {
-      setError("La fecha de finalización es obligatoria.");
+      setError("Debe indicar la fecha de fin.");
       return;
     }
 
-    if (fechaFin < fechaInicio) {
-      setError("La fecha de finalización no puede ser menor que la fecha de inicio.");
+    if (!cupoMaximo || Number(cupoMaximo) <= 0) {
+      setError("Debe indicar el cupo máximo.");
       return;
     }
 
-    const cupoMaximoNumero = Number(cupoMaximo);
-    const cupoDisponibleNumero = Number(cupoDisponible);
-    const precioEspecialNumero = Number(precioEspecial);
+    const disponible = cupoDisponible || cupoMaximo;
 
-    if (Number.isNaN(cupoMaximoNumero) || cupoMaximoNumero < 0) {
-      setError("El cupo máximo debe ser un número válido.");
-      return;
-    }
-
-    if (Number.isNaN(cupoDisponibleNumero) || cupoDisponibleNumero < 0) {
-      setError("El cupo disponible debe ser un número válido.");
-      return;
-    }
-
-    if (cupoDisponibleNumero > cupoMaximoNumero) {
-      setError("El cupo disponible no puede ser mayor que el cupo máximo.");
-      return;
-    }
-
-    if (Number.isNaN(precioEspecialNumero) || precioEspecialNumero < 0) {
-      setError("El precio especial debe ser un número válido.");
+    if (Number(disponible) > Number(cupoMaximo)) {
+      setError("El cupo disponible no puede ser mayor al cupo máximo.");
       return;
     }
 
@@ -377,54 +336,56 @@ export default function ProgramacionesCursosPage() {
       profesor_id: profesorId,
       fecha_inicio: fechaInicio,
       fecha_fin: fechaFin,
-      cupo_maximo: cupoMaximoNumero,
-      cupo_disponible: cupoDisponibleNumero,
-      precio_especial: precioEspecialNumero,
+      cupo_maximo: Number(cupoMaximo),
+      cupo_disponible: Number(disponible),
+      precio_especial: precioEspecial ? Number(precioEspecial) : null,
+      estrategia_formacion: estrategiaFormacion.trim() || null,
+      nivel_certificacion: nivelCertificacion.trim() || null,
+      asesor_responsable: asesorResponsable.trim() || null,
       estado,
       observacion: observacion.trim() || null,
       updated_at: new Date().toISOString(),
     };
 
-    if (estaEditando && programacionEditandoId) {
-      const { data, error } = await supabase
+    if (editandoId) {
+      const { error } = await supabase
         .from("programaciones_cursos")
         .update(payload)
-        .eq("id", programacionEditandoId)
-        .select("id");
+        .eq("id", editandoId);
 
       if (error) {
-        console.error("Error al actualizar:", error);
-        setError(`Error al actualizar: ${error.message}`);
-      } else if (!data || data.length === 0) {
-        setError(
-          "No se actualizó ningún registro. Verifique las políticas RLS de actualización en Supabase."
-        );
-      } else {
-        setMensaje("Programación actualizada correctamente.");
-        limpiarFormulario();
-        await cargarDatos();
+        console.error("Error actualizando:", error);
+        setError(`Error actualizando programación: ${error.message}`);
+        setGuardando(false);
+        return;
       }
+
+      setMensaje("Programación actualizada correctamente.");
     } else {
       const { error } = await supabase
         .from("programaciones_cursos")
         .insert(payload);
 
       if (error) {
-        console.error("Error al guardar:", error);
-        setError(`Error al guardar: ${error.message}`);
-      } else {
-        setMensaje("Programación registrada correctamente.");
-        limpiarFormulario();
-        await cargarDatos();
+        console.error("Error creando:", error);
+        setError(`Error creando programación: ${error.message}`);
+        setGuardando(false);
+        return;
       }
+
+      setMensaje("Programación creada correctamente.");
     }
+
+    limpiarFormulario();
+    await cargarProgramaciones();
 
     setGuardando(false);
   }
 
-  async function cambiarEstado(id: string, nuevoEstado: string) {
-    setError("");
-    setMensaje("");
+  async function cambiarEstado(item: Programacion) {
+    const nuevoEstado = item.estado === "Activo" || item.estado === "Abierto"
+      ? "Cerrado"
+      : "Abierto";
 
     const { error } = await supabase
       .from("programaciones_cursos")
@@ -432,224 +393,172 @@ export default function ProgramacionesCursosPage() {
         estado: nuevoEstado,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", id);
+      .eq("id", item.id);
 
     if (error) {
-      console.error("Error al actualizar estado:", error);
-      setError(`Error al actualizar estado: ${error.message}`);
-    } else {
-      setMensaje("Estado de la programación actualizado correctamente.");
-
-      if (programacionEditandoId === id) {
-        setEstado(nuevoEstado);
-      }
-
-      await cargarDatos();
+      console.error("Error cambiando estado:", error);
+      setError(`Error cambiando estado: ${error.message}`);
+      return;
     }
+
+    setMensaje(`Programación marcada como ${nuevoEstado}.`);
+    await cargarProgramaciones();
   }
 
-  const cursosActivos = cursos.filter((item) => item.estado === "Activo");
-  const modalidadesActivas = modalidades.filter((item) => item.estado === "Activo");
-  const horariosActivos = horarios.filter((item) => item.estado === "Activo");
-  const aulasActivas = aulas.filter((item) => item.estado === "Activo");
-  const profesoresActivos = profesores.filter((item) => item.estado === "Activo");
+  function formatearFecha(valor: string | null | undefined) {
+    if (!valor) return "-";
+
+    const fechaSolo = valor.includes("T") ? valor.split("T")[0] : valor;
+    const [year, month, day] = fechaSolo.split("-");
+
+    if (!year || !month || !day) return valor;
+
+    return `${day}/${month}/${year}`;
+  }
+
+  function formatearMonto(valor: number | null | undefined) {
+    return new Intl.NumberFormat("es-DO", {
+      style: "currency",
+      currency: "DOP",
+      minimumFractionDigits: 2,
+    }).format(Number(valor || 0));
+  }
 
   const programacionesFiltradas = programaciones.filter((item) => {
-    const texto = busqueda.toLowerCase();
+    const texto = busqueda.toLowerCase().trim();
 
-    const nombreCurso = item.cursos?.[0]?.nombre || "";
-    const nombreModalidad = item.modalidades?.[0]?.nombre || "";
-    const nombreHorario = item.horarios?.[0]?.nombre || "";
-    const nombreAula = item.aulas?.[0]?.nombre || "";
-    const nombreProfesor = item.profesores?.[0]?.nombre_completo || "";
+    const curso = obtenerPrimero(item.cursos);
+    const modalidad = obtenerPrimero(item.modalidades);
+    const horario = obtenerPrimero(item.horarios);
+    const aula = obtenerPrimero(item.aulas);
+    const profesor = obtenerPrimero(item.profesores);
 
-    const coincideBusqueda =
-      nombreCurso.toLowerCase().includes(texto) ||
-      nombreModalidad.toLowerCase().includes(texto) ||
-      nombreHorario.toLowerCase().includes(texto) ||
-      nombreAula.toLowerCase().includes(texto) ||
-      nombreProfesor.toLowerCase().includes(texto) ||
-      item.estado.toLowerCase().includes(texto);
+    const cadena = [
+      curso?.codigo || "",
+      curso?.nombre || "",
+      modalidad?.nombre || "",
+      horario?.nombre || "",
+      horario?.dias || "",
+      aula?.nombre || "",
+      profesor?.nombre_completo || "",
+      item.estrategia_formacion || "",
+      item.nivel_certificacion || "",
+      item.asesor_responsable || "",
+      item.estado || "",
+    ]
+      .join(" ")
+      .toLowerCase();
 
-    const coincideEstado =
-      filtroEstado === "Todos" || item.estado === filtroEstado;
-
-    const coincideCurso =
-      filtroCurso === "Todos" || item.curso_id === filtroCurso;
-
-    return coincideBusqueda && coincideEstado && coincideCurso;
+    return cadena.includes(texto);
   });
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
-                Fundación Dra. Carmen Pereyra
-              </p>
-
-              <h1 className="mt-1 text-2xl font-bold text-slate-900">
-                Programaciones de cursos
-              </h1>
-
-              <p className="mt-1 text-sm text-slate-600">
-                Programe cursos con modalidad, horario, aula, profesor, fechas,
-                cupos y precio.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={cargarDatos}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
-            >
-              Actualizar
-            </button>
-          </div>
-
-          {mensaje && (
-            <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
-              {mensaje}
-            </div>
-          )}
-
-          {error && (
-            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-              {error}
-            </div>
-          )}
-        </section>
-
-        <div className="grid gap-6 xl:grid-cols-3">
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900">
-              {estaEditando ? "Editar programación" : "Nueva programación"}
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-600">
-              {estaEditando
-                ? "Modifique los datos de la programación seleccionada."
-                : "Registre una nueva apertura o grupo de curso."}
+    <main className="min-h-screen bg-slate-100 p-4 md:p-8">
+      <section className="mx-auto max-w-7xl space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-wide text-blue-700">
+              Catálogos
             </p>
 
-            <form onSubmit={guardarProgramacion} className="mt-5 space-y-4">
+            <h1 className="mt-1 text-3xl font-black text-slate-900">
+              Programaciones de cursos
+            </h1>
+
+            <p className="mt-2 text-sm text-slate-600">
+              Registre la programación del curso y los datos requeridos para los
+              remitidos de INFOTEP.
+            </p>
+          </div>
+
+          <Link
+            href="/catalogos"
+            className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-center text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            Volver a catálogos
+          </Link>
+        </div>
+
+        {mensaje && (
+          <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
+            {mensaje}
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            {error}
+          </div>
+        )}
+
+        <div className="grid gap-6 lg:grid-cols-[430px_1fr]">
+          <form
+            onSubmit={guardarProgramacion}
+            className="h-fit rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+          >
+            <h2 className="text-lg font-black text-slate-900">
+              {editandoId ? "Editar programación" : "Nueva programación"}
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Los campos de INFOTEP se usarán para generar el reporte de
+              remitidos.
+            </p>
+
+            <div className="mt-5 space-y-4">
+              <CampoSelect
+                label="Curso"
+                value={cursoId}
+                onChange={setCursoId}
+                opciones={cursos.map((item) => ({
+                  id: item.id,
+                  nombre: item.nombre,
+                }))}
+              />
+
+              <CampoSelect
+                label="Modalidad / Vía de formación"
+                value={modalidadId}
+                onChange={setModalidadId}
+                opciones={modalidades}
+              />
+
+              <CampoSelect
+                label="Horario"
+                value={horarioId}
+                onChange={setHorarioId}
+                opciones={horarios}
+              />
+
+              <CampoSelect
+                label="Aula / Lugar a impartirse"
+                value={aulaId}
+                onChange={setAulaId}
+                opciones={aulas}
+              />
+
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Curso
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Facilitador(a) / Profesor
                 </label>
 
                 <select
-                  value={cursoId}
-                  onChange={(e) => setCursoId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                  value={profesorId}
+                  onChange={(e) => setProfesorId(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="">Seleccione un curso</option>
-                  {cursosActivos.map((curso) => (
-                    <option key={curso.id} value={curso.id}>
-                      {curso.nombre}
+                  <option value="">Seleccione</option>
+                  {profesores.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nombre_completo}
                     </option>
                   ))}
                 </select>
-
-                {cursoId && (
-                  <div className="mt-2 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                    <span>Precio base: {formatearMonto(obtenerPrecioBaseCurso())}</span>
-                    <button
-                      type="button"
-                      onClick={usarPrecioCurso}
-                      className="font-semibold text-blue-700 hover:text-blue-900"
-                    >
-                      Usar precio
-                    </button>
-                  </div>
-                )}
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Modalidad
-                  </label>
-
-                  <select
-                    value={modalidadId}
-                    onChange={(e) => setModalidadId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="">Seleccione</option>
-                    {modalidadesActivas.map((modalidad) => (
-                      <option key={modalidad.id} value={modalidad.id}>
-                        {modalidad.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Horario
-                  </label>
-
-                  <select
-                    value={horarioId}
-                    onChange={(e) => setHorarioId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="">Seleccione</option>
-                    {horariosActivos.map((horario) => (
-                      <option key={horario.id} value={horario.id}>
-                        {horario.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Aula / espacio
-                  </label>
-
-                  <select
-                    value={aulaId}
-                    onChange={(e) => setAulaId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="">Seleccione</option>
-                    {aulasActivas.map((aula) => (
-                      <option key={aula.id} value={aula.id}>
-                        {aula.nombre} - Cap. {aula.capacidad ?? 0}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Profesor
-                  </label>
-
-                  <select
-                    value={profesorId}
-                    onChange={(e) => setProfesorId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="">Seleccione</option>
-                    {profesoresActivos.map((profesor) => (
-                      <option key={profesor.id} value={profesor.id}>
-                        {profesor.nombre_completo}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
                     Fecha inicio
                   </label>
 
@@ -657,12 +566,12 @@ export default function ProgramacionesCursosPage() {
                     type="date"
                     value={fechaInicio}
                     onChange={(e) => setFechaInicio(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
                     Fecha fin
                   </label>
 
@@ -670,285 +579,375 @@ export default function ProgramacionesCursosPage() {
                     type="date"
                     value={fechaFin}
                     onChange={(e) => setFechaFin(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
                     Cupo máximo
                   </label>
 
                   <input
                     type="number"
-                    min="0"
                     value={cupoMaximo}
                     onChange={(e) => setCupoMaximo(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                    placeholder="Ejemplo: 25"
+                    min="0"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
                     Cupo disponible
                   </label>
 
                   <input
                     type="number"
-                    min="0"
                     value={cupoDisponible}
                     onChange={(e) => setCupoDisponible(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Precio
-                  </label>
-
-                  <input
-                    type="number"
+                    placeholder="Si se deja vacío usa el cupo máximo"
                     min="0"
-                    step="0.01"
-                    value={precioEspecial}
-                    onChange={(e) => setPrecioEspecial(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Precio especial
+                </label>
+
+                <input
+                  type="number"
+                  value={precioEspecial}
+                  onChange={(e) => setPrecioEspecial(e.target.value)}
+                  placeholder="Opcional"
+                  min="0"
+                  step="0.01"
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
+                <h3 className="text-base font-black text-blue-950">
+                  Datos para INFOTEP
+                </h3>
+
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-bold text-blue-900">
+                      Estrategia de formación
+                    </label>
+
+                    <input
+                      type="text"
+                      value={estrategiaFormacion}
+                      onChange={(e) => setEstrategiaFormacion(e.target.value)}
+                      placeholder="Ejemplo: Habilitación"
+                      className="w-full rounded-2xl border border-blue-200 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-bold text-blue-900">
+                      Nivel de certificación
+                    </label>
+
+                    <input
+                      type="text"
+                      value={nivelCertificacion}
+                      onChange={(e) => setNivelCertificacion(e.target.value)}
+                      placeholder="Ejemplo: Auxiliar"
+                      className="w-full rounded-2xl border border-blue-200 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-bold text-blue-900">
+                      Asesor/a responsable
+                    </label>
+
+                    <input
+                      type="text"
+                      value={asesorResponsable}
+                      onChange={(e) => setAsesorResponsable(e.target.value)}
+                      placeholder="Nombre del asesor responsable"
+                      className="w-full rounded-2xl border border-blue-200 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-bold text-slate-700">
                   Estado
                 </label>
 
                 <select
                   value={estado}
                   onChange={(e) => setEstado(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                 >
-                  {estadosProgramacion.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
+                  <option value="Abierto">Abierto</option>
+                  <option value="Programado">Programado</option>
+                  <option value="Cerrado">Cerrado</option>
+                  <option value="Finalizado">Finalizado</option>
+                  <option value="Cancelado">Cancelado</option>
+                  <option value="Activo">Activo</option>
+                  <option value="Inactivo">Inactivo</option>
                 </select>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label className="mb-1 block text-sm font-bold text-slate-700">
                   Observación
                 </label>
 
                 <textarea
                   value={observacion}
                   onChange={(e) => setObservacion(e.target.value)}
-                  placeholder="Notas internas de la programación"
                   rows={3}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                  placeholder="Observación general de la programación"
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
 
-              <div className="flex flex-col gap-2">
+              <button
+                type="submit"
+                disabled={guardando}
+                className="w-full rounded-2xl bg-blue-700 px-4 py-4 text-sm font-black text-white shadow-sm hover:bg-blue-800 disabled:opacity-60"
+              >
+                {guardando
+                  ? "Guardando..."
+                  : editandoId
+                  ? "Actualizar programación"
+                  : "Guardar programación"}
+              </button>
+
+              {editandoId && (
                 <button
-                  type="submit"
-                  disabled={guardando}
-                  className="w-full rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  onClick={limpiarFormulario}
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50"
                 >
-                  {guardando
-                    ? estaEditando
-                      ? "Actualizando..."
-                      : "Guardando..."
-                    : estaEditando
-                    ? "Actualizar programación"
-                    : "Guardar programación"}
+                  Cancelar edición
                 </button>
-
-                {estaEditando && (
-                  <button
-                    type="button"
-                    onClick={cancelarEdicion}
-                    className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                  >
-                    Cancelar edición
-                  </button>
-                )}
-              </div>
-            </form>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                Listado de programaciones
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-600">
-                Total registradas: {programacionesFiltradas.length}
-              </p>
+              )}
             </div>
+          </form>
 
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="space-y-4">
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <label className="mb-1 block text-sm font-bold text-slate-700">
+                Buscar
+              </label>
+
               <input
                 type="text"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar programación"
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                placeholder="Buscar por curso, código, profesor, lugar, estrategia o asesor"
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
               />
-
-              <select
-                value={filtroEstado}
-                onChange={(e) => setFiltroEstado(e.target.value)}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-              >
-                <option value="Todos">Todos los estados</option>
-                {estadosProgramacion.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={filtroCurso}
-                onChange={(e) => setFiltroCurso(e.target.value)}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-              >
-                <option value="Todos">Todos los cursos</option>
-                {cursos.map((curso) => (
-                  <option key={curso.id} value={curso.id}>
-                    {curso.nombre}
-                  </option>
-                ))}
-              </select>
             </div>
 
-            <div className="mt-5 overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b bg-slate-100 text-left text-slate-700">
-                    <th className="px-3 py-3 font-semibold">Curso</th>
-                    <th className="px-3 py-3 font-semibold">Datos</th>
-                    <th className="px-3 py-3 font-semibold">Fechas</th>
-                    <th className="px-3 py-3 font-semibold">Cupos</th>
-                    <th className="px-3 py-3 font-semibold">Precio</th>
-                    <th className="px-3 py-3 font-semibold">Estado</th>
-                    <th className="px-3 py-3 font-semibold">Acciones</th>
-                  </tr>
-                </thead>
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 px-4 py-4">
+                <h2 className="text-lg font-black text-slate-900">
+                  Listado de programaciones
+                </h2>
 
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="px-3 py-6 text-center text-slate-500"
-                      >
-                        Cargando programaciones...
-                      </td>
-                    </tr>
-                  ) : programacionesFiltradas.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="px-3 py-6 text-center text-slate-500"
-                      >
-                        No hay programaciones registradas.
-                      </td>
-                    </tr>
-                  ) : (
-                    programacionesFiltradas.map((item) => (
-                      <tr key={item.id} className="border-b hover:bg-slate-50">
-                        <td className="px-3 py-3">
-                          <p className="font-medium text-slate-900">
-                            {item.cursos?.[0]?.nombre || "Sin curso"}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {item.modalidades?.[0]?.nombre || "Sin modalidad"}
-                          </p>
-                        </td>
+                <p className="mt-1 text-sm text-slate-500">
+                  Mostrando {programacionesFiltradas.length} registros.
+                </p>
+              </div>
 
-                        <td className="px-3 py-3 text-slate-600">
-                          <p>{item.horarios?.[0]?.nombre || "Sin horario"}</p>
-                          <p className="text-xs">
-                            Aula: {item.aulas?.[0]?.nombre || "-"}
-                          </p>
-                          <p className="text-xs">
-                            Profesor:{" "}
-                            {item.profesores?.[0]?.nombre_completo || "-"}
-                          </p>
-                        </td>
+              {loading ? (
+                <div className="p-8 text-center text-sm font-semibold text-slate-500">
+                  Cargando programaciones...
+                </div>
+              ) : programacionesFiltradas.length === 0 ? (
+                <div className="p-8 text-center text-sm font-semibold text-slate-500">
+                  No hay programaciones registradas.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {programacionesFiltradas.map((item) => {
+                    const curso = obtenerPrimero(item.cursos);
+                    const modalidad = obtenerPrimero(item.modalidades);
+                    const horario = obtenerPrimero(item.horarios);
+                    const aula = obtenerPrimero(item.aulas);
+                    const profesor = obtenerPrimero(item.profesores);
 
-                        <td className="px-3 py-3 text-slate-600">
-                          <p>Inicio: {formatearFecha(item.fecha_inicio)}</p>
-                          <p className="text-xs">
-                            Fin: {formatearFecha(item.fecha_fin)}
-                          </p>
-                        </td>
+                    return (
+                      <article key={item.id} className="p-4">
+                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-700">
+                                {item.estado || "Sin estado"}
+                              </span>
 
-                        <td className="px-3 py-3 text-slate-600">
-                          <p>Máx: {item.cupo_maximo ?? 0}</p>
-                          <p className="text-xs">
-                            Disp: {item.cupo_disponible ?? 0}
-                          </p>
-                        </td>
+                              {curso?.codigo && (
+                                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
+                                  Código: {curso.codigo}
+                                </span>
+                              )}
 
-                        <td className="px-3 py-3 text-slate-600">
-                          {formatearMonto(item.precio_especial)}
-                        </td>
+                              <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-black text-green-700">
+                                {modalidad?.nombre || "Modalidad"}
+                              </span>
+                            </div>
 
-                        <td className="px-3 py-3">
-                          <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                            {item.estado}
-                          </span>
-                        </td>
+                            <h3 className="mt-3 text-xl font-black text-slate-900">
+                              {curso?.nombre || "Curso sin nombre"}
+                            </h3>
 
-                        <td className="px-3 py-3">
-                          <div className="flex flex-wrap gap-2">
+                            <p className="mt-1 text-sm font-semibold text-slate-500">
+                              Facilitador(a):{" "}
+                              {profesor?.nombre_completo || "-"}
+                            </p>
+
+                            <div className="mt-4 grid gap-3 md:grid-cols-3">
+                              <InfoBox
+                                titulo="Inicio"
+                                valor={formatearFecha(item.fecha_inicio)}
+                              />
+                              <InfoBox
+                                titulo="Fin"
+                                valor={formatearFecha(item.fecha_fin)}
+                              />
+                              <InfoBox
+                                titulo="Horario"
+                                valor={horario?.nombre || "-"}
+                              />
+                              <InfoBox
+                                titulo="Días"
+                                valor={horario?.dias || "-"}
+                              />
+                              <InfoBox
+                                titulo="Lugar"
+                                valor={aula?.nombre || "-"}
+                              />
+                              <InfoBox
+                                titulo="Precio especial"
+                                valor={formatearMonto(item.precio_especial)}
+                              />
+                              <InfoBox
+                                titulo="Cupo máximo"
+                                valor={String(item.cupo_maximo ?? "-")}
+                              />
+                              <InfoBox
+                                titulo="Cupo disponible"
+                                valor={String(item.cupo_disponible ?? "-")}
+                              />
+                              <InfoBox
+                                titulo="Asesor responsable"
+                                valor={item.asesor_responsable || "-"}
+                              />
+                            </div>
+
+                            <div className="mt-3 rounded-2xl bg-blue-50 p-3">
+                              <p className="text-[11px] font-bold uppercase text-blue-500">
+                                Datos INFOTEP
+                              </p>
+
+                              <p className="mt-1 text-sm font-black text-blue-950">
+                                Estrategia:{" "}
+                                {item.estrategia_formacion || "-"} · Nivel:{" "}
+                                {item.nivel_certificacion || "-"}
+                              </p>
+                            </div>
+
+                            {item.observacion && (
+                              <div className="mt-3 rounded-2xl bg-slate-50 p-3">
+                                <p className="text-[11px] font-bold uppercase text-slate-400">
+                                  Observación
+                                </p>
+                                <p className="mt-1 text-sm font-black text-slate-900">
+                                  {item.observacion}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="grid min-w-full gap-2 sm:grid-cols-2 xl:min-w-[180px] xl:grid-cols-1">
                             <button
                               type="button"
-                              onClick={() => iniciarEdicion(item)}
-                              className="rounded-lg border border-blue-300 px-3 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
+                              onClick={() => editarProgramacion(item)}
+                              className="rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-blue-800"
                             >
                               Editar
                             </button>
 
-                            {item.estado !== "Cancelado" ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  cambiarEstado(item.id, "Cancelado")
-                                }
-                                className="rounded-lg border border-red-300 px-3 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-50"
-                              >
-                                Cancelar
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  cambiarEstado(item.id, "Programado")
-                                }
-                                className="rounded-lg border border-green-300 px-3 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-50"
-                              >
-                                Reabrir
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => cambiarEstado(item)}
+                              className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50"
+                            >
+                              Cambiar estado
+                            </button>
                           </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </section>
+          </div>
         </div>
-      </div>
+      </section>
     </main>
+  );
+}
+
+function CampoSelect({
+  label,
+  value,
+  onChange,
+  opciones,
+}: {
+  label: string;
+  value: string;
+  onChange: (valor: string) => void;
+  opciones: { id: string; nombre: string }[];
+}) {
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-bold text-slate-700">
+        {label}
+      </label>
+
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+      >
+        <option value="">Seleccione</option>
+        {opciones.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.nombre}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function InfoBox({ titulo, valor }: { titulo: string; valor: string }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-3">
+      <p className="text-[11px] font-bold uppercase text-slate-400">
+        {titulo}
+      </p>
+      <p className="mt-1 break-words text-sm font-black text-slate-900">
+        {valor}
+      </p>
+    </div>
   );
 }

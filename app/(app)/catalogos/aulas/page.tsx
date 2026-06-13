@@ -6,38 +6,38 @@ import { supabase } from "@/lib/supabaseClient";
 type Aula = {
   id: string;
   nombre: string;
-  ubicacion: string | null;
   capacidad: number | null;
-  tipo_espacio: string;
-  estado: string;
-  created_at: string;
+  ubicacion: string | null;
+  tipo_lugar: string | null;
+  direccion: string | null;
+  sector: string | null;
+  municipio: string | null;
+  provincia: string | null;
+  referencia: string | null;
+  estado: string | null;
+  created_at: string | null;
 };
-
-const tiposEspacio = ["Aula física", "Laboratorio", "Salón", "Aula virtual"];
 
 export default function AulasPage() {
   const [aulas, setAulas] = useState<Aula[]>([]);
+  const [editandoId, setEditandoId] = useState("");
 
   const [nombre, setNombre] = useState("");
+  const [capacidad, setCapacidad] = useState("");
   const [ubicacion, setUbicacion] = useState("");
-  const [capacidad, setCapacidad] = useState("0");
-  const [tipoEspacio, setTipoEspacio] = useState("");
+  const [tipoLugar, setTipoLugar] = useState("");
+  const [direccion, setDireccion] = useState("");
+  const [sector, setSector] = useState("");
+  const [municipio, setMunicipio] = useState("");
+  const [provincia, setProvincia] = useState("");
+  const [referencia, setReferencia] = useState("");
   const [estado, setEstado] = useState("Activo");
 
-  const [aulaEditandoId, setAulaEditandoId] = useState<string | null>(null);
-  const [nombreOriginal, setNombreOriginal] = useState("");
-
   const [busqueda, setBusqueda] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState("Todos");
-  const [filtroTipo, setFiltroTipo] = useState("Todos");
-
   const [loading, setLoading] = useState(false);
   const [guardando, setGuardando] = useState(false);
-
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
-
-  const estaEditando = Boolean(aulaEditandoId);
 
   useEffect(() => {
     cargarAulas();
@@ -49,47 +49,66 @@ export default function AulasPage() {
 
     const { data, error } = await supabase
       .from("aulas")
-      .select("id, nombre, ubicacion, capacidad, tipo_espacio, estado, created_at")
-      .order("created_at", { ascending: false });
+      .select(
+        `
+        id,
+        nombre,
+        capacidad,
+        ubicacion,
+        tipo_lugar,
+        direccion,
+        sector,
+        municipio,
+        provincia,
+        referencia,
+        estado,
+        created_at
+      `
+      )
+      .order("nombre", { ascending: true });
 
     if (error) {
-      console.error("Error Supabase:", error);
-      setError(`Error Supabase: ${error.message}`);
+      console.error("Error cargando aulas:", error);
+      setError(`Error cargando aulas/lugares: ${error.message}`);
       setAulas([]);
     } else {
-      setAulas(data || []);
+      setAulas((data || []) as Aula[]);
     }
 
     setLoading(false);
   }
 
   function limpiarFormulario() {
+    setEditandoId("");
     setNombre("");
+    setCapacidad("");
     setUbicacion("");
-    setCapacidad("0");
-    setTipoEspacio("");
+    setTipoLugar("");
+    setDireccion("");
+    setSector("");
+    setMunicipio("");
+    setProvincia("");
+    setReferencia("");
     setEstado("Activo");
-    setAulaEditandoId(null);
-    setNombreOriginal("");
   }
 
-  function iniciarEdicion(aula: Aula) {
-    setError("");
-    setMensaje("");
-
-    setAulaEditandoId(aula.id);
-    setNombre(aula.nombre);
-    setNombreOriginal(aula.nombre);
+  function editarAula(aula: Aula) {
+    setEditandoId(aula.id);
+    setNombre(aula.nombre || "");
+    setCapacidad(aula.capacidad ? String(aula.capacidad) : "");
     setUbicacion(aula.ubicacion || "");
-    setCapacidad(String(aula.capacidad ?? 0));
-    setTipoEspacio(aula.tipo_espacio || "");
+    setTipoLugar(aula.tipo_lugar || "");
+    setDireccion(aula.direccion || "");
+    setSector(aula.sector || "");
+    setMunicipio(aula.municipio || "");
+    setProvincia(aula.provincia || "");
+    setReferencia(aula.referencia || "");
     setEstado(aula.estado || "Activo");
-  }
 
-  function cancelarEdicion() {
-    limpiarFormulario();
-    setError("");
-    setMensaje("");
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
 
   async function guardarAula(e: React.FormEvent<HTMLFormElement>) {
@@ -99,92 +118,61 @@ export default function AulasPage() {
     setMensaje("");
 
     if (!nombre.trim()) {
-      setError("El nombre del aula o espacio es obligatorio.");
+      setError("El nombre del aula o lugar es obligatorio.");
       return;
-    }
-
-    if (!tipoEspacio) {
-      setError("Debe seleccionar un tipo de espacio.");
-      return;
-    }
-
-    const capacidadNumero = Number(capacidad);
-
-    if (Number.isNaN(capacidadNumero) || capacidadNumero < 0) {
-      setError("La capacidad debe ser un número válido.");
-      return;
-    }
-
-    const nombreLimpio = nombre.trim();
-    const nombreNuevoNormalizado = nombreLimpio.toLowerCase();
-    const nombreOriginalNormalizado = nombreOriginal.trim().toLowerCase();
-
-    const nombreFueCambiado =
-      !estaEditando || nombreNuevoNormalizado !== nombreOriginalNormalizado;
-
-    if (nombreFueCambiado) {
-      const existe = aulas.some((aula) => {
-        return (
-          aula.nombre.trim().toLowerCase() === nombreNuevoNormalizado &&
-          aula.id !== aulaEditandoId
-        );
-      });
-
-      if (existe) {
-        setError("Ya existe otra aula o espacio con este nombre.");
-        return;
-      }
     }
 
     setGuardando(true);
 
     const payload = {
-      nombre: nombreLimpio,
+      nombre: nombre.trim(),
+      capacidad: capacidad ? Number(capacidad) : null,
       ubicacion: ubicacion.trim() || null,
-      capacidad: capacidadNumero,
-      tipo_espacio: tipoEspacio,
+      tipo_lugar: tipoLugar.trim() || null,
+      direccion: direccion.trim() || null,
+      sector: sector.trim() || null,
+      municipio: municipio.trim() || null,
+      provincia: provincia.trim() || null,
+      referencia: referencia.trim() || null,
       estado,
       updated_at: new Date().toISOString(),
     };
 
-    if (estaEditando && aulaEditandoId) {
-      const { data, error } = await supabase
+    if (editandoId) {
+      const { error } = await supabase
         .from("aulas")
         .update(payload)
-        .eq("id", aulaEditandoId)
-        .select("id");
+        .eq("id", editandoId);
 
       if (error) {
-        console.error("Error al actualizar:", error);
-        setError(`Error al actualizar: ${error.message}`);
-      } else if (!data || data.length === 0) {
-        setError(
-          "No se actualizó ningún registro. Verifique las políticas RLS de actualización en Supabase."
-        );
-      } else {
-        setMensaje("Aula o espacio actualizado correctamente.");
-        limpiarFormulario();
-        await cargarAulas();
+        console.error("Error actualizando aula:", error);
+        setError(`Error actualizando aula/lugar: ${error.message}`);
+        setGuardando(false);
+        return;
       }
+
+      setMensaje("Aula/lugar actualizado correctamente.");
     } else {
       const { error } = await supabase.from("aulas").insert(payload);
 
       if (error) {
-        console.error("Error al guardar:", error);
-        setError(`Error al guardar: ${error.message}`);
-      } else {
-        setMensaje("Aula o espacio registrado correctamente.");
-        limpiarFormulario();
-        await cargarAulas();
+        console.error("Error creando aula:", error);
+        setError(`Error creando aula/lugar: ${error.message}`);
+        setGuardando(false);
+        return;
       }
+
+      setMensaje("Aula/lugar creado correctamente.");
     }
+
+    limpiarFormulario();
+    await cargarAulas();
 
     setGuardando(false);
   }
 
-  async function cambiarEstado(id: string, nuevoEstado: string) {
-    setError("");
-    setMensaje("");
+  async function cambiarEstado(aula: Aula) {
+    const nuevoEstado = aula.estado === "Activo" ? "Inactivo" : "Activo";
 
     const { error } = await supabase
       .from("aulas")
@@ -192,350 +180,429 @@ export default function AulasPage() {
         estado: nuevoEstado,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", id);
+      .eq("id", aula.id);
 
     if (error) {
-      console.error("Error al actualizar estado:", error);
-      setError(`Error al actualizar estado: ${error.message}`);
-    } else {
-      setMensaje(
-        nuevoEstado === "Activo"
-          ? "Aula o espacio activado correctamente."
-          : "Aula o espacio inactivado correctamente."
-      );
-
-      if (aulaEditandoId === id) {
-        setEstado(nuevoEstado);
-      }
-
-      await cargarAulas();
+      console.error("Error cambiando estado:", error);
+      setError(`Error cambiando estado: ${error.message}`);
+      return;
     }
+
+    setMensaje(`Aula/lugar marcado como ${nuevoEstado}.`);
+    await cargarAulas();
+  }
+
+  function formatearFecha(valor: string | null) {
+    if (!valor) return "-";
+
+    const fecha = new Date(valor);
+
+    if (Number.isNaN(fecha.getTime())) return valor;
+
+    return fecha.toLocaleDateString("es-DO", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
   }
 
   const aulasFiltradas = aulas.filter((aula) => {
-    const texto = busqueda.toLowerCase();
+    const texto = busqueda.toLowerCase().trim();
 
-    const coincideBusqueda =
-      aula.nombre.toLowerCase().includes(texto) ||
-      (aula.ubicacion || "").toLowerCase().includes(texto) ||
-      aula.tipo_espacio.toLowerCase().includes(texto);
+    const cadena = [
+      aula.nombre || "",
+      aula.ubicacion || "",
+      aula.tipo_lugar || "",
+      aula.direccion || "",
+      aula.sector || "",
+      aula.municipio || "",
+      aula.provincia || "",
+      aula.referencia || "",
+      aula.estado || "",
+    ]
+      .join(" ")
+      .toLowerCase();
 
-    const coincideEstado =
-      filtroEstado === "Todos" || aula.estado === filtroEstado;
-
-    const coincideTipo =
-      filtroTipo === "Todos" || aula.tipo_espacio === filtroTipo;
-
-    return coincideBusqueda && coincideEstado && coincideTipo;
+    return cadena.includes(texto);
   });
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
-                Fundación Dra. Carmen Pereyra
-              </p>
+    <main className="min-h-screen bg-slate-100 p-4 md:p-8">
+      <section className="mx-auto max-w-7xl space-y-6">
+        <div>
+          <p className="text-sm font-bold uppercase tracking-wide text-blue-700">
+            Catálogos
+          </p>
 
-              <h1 className="mt-1 text-2xl font-bold text-slate-900">
-                Aulas / Espacios
-              </h1>
+          <h1 className="mt-1 text-3xl font-black text-slate-900">
+            Aulas / Lugares
+          </h1>
 
-              <p className="mt-1 text-sm text-slate-600">
-                Administre las aulas físicas, laboratorios, salones y espacios virtuales.
-              </p>
-            </div>
+          <p className="mt-2 text-sm text-slate-600">
+            Registre las aulas, centros o lugares donde se impartirán las
+            acciones formativas. Esta información será usada en los reportes de
+            INFOTEP.
+          </p>
+        </div>
 
-            <button
-              type="button"
-              onClick={cargarAulas}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
-            >
-              Actualizar
-            </button>
+        {mensaje && (
+          <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
+            {mensaje}
           </div>
+        )}
 
-          {mensaje && (
-            <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
-              {mensaje}
-            </div>
-          )}
+        {error && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            {error}
+          </div>
+        )}
 
-          {error && (
-            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-              {error}
-            </div>
-          )}
-        </section>
-
-        <div className="grid gap-6 lg:grid-cols-3">
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900">
-              {estaEditando ? "Editar aula / espacio" : "Nueva aula / espacio"}
+        <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
+          <form
+            onSubmit={guardarAula}
+            className="h-fit rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+          >
+            <h2 className="text-lg font-black text-slate-900">
+              {editandoId ? "Editar aula/lugar" : "Nueva aula/lugar"}
             </h2>
 
-            <p className="mt-1 text-sm text-slate-600">
-              {estaEditando
-                ? "Modifique los datos del espacio seleccionado."
-                : "Registre un espacio donde se impartirán los cursos."}
+            <p className="mt-1 text-sm text-slate-500">
+              El nombre será usado como “Lugar a impartirse” en el formulario de
+              remitidos INFOTEP.
             </p>
 
-            <form onSubmit={guardarAula} className="mt-5 space-y-4">
+            <div className="mt-5 space-y-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Nombre
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Nombre del aula o lugar
                 </label>
 
                 <input
                   type="text"
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Ej. Aula 1"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                  placeholder="Ejemplo: Politécnico Las Caobas"
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Ubicación
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Tipo de lugar
+                </label>
+
+                <select
+                  value={tipoLugar}
+                  onChange={(e) => setTipoLugar(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="">Seleccione</option>
+                  <option value="Aula">Aula</option>
+                  <option value="Centro educativo">Centro educativo</option>
+                  <option value="Centro comunitario">Centro comunitario</option>
+                  <option value="Institución">Institución</option>
+                  <option value="Oficina">Oficina</option>
+                  <option value="Virtual">Virtual</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
+                    Capacidad
+                  </label>
+
+                  <input
+                    type="number"
+                    value={capacidad}
+                    onChange={(e) => setCapacidad(e.target.value)}
+                    placeholder="Ejemplo: 25"
+                    min="0"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
+                    Estado
+                  </label>
+
+                  <select
+                    value={estado}
+                    onChange={(e) => setEstado(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value="Activo">Activo</option>
+                    <option value="Inactivo">Inactivo</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Ubicación interna
                 </label>
 
                 <input
                   type="text"
                   value={ubicacion}
                   onChange={(e) => setUbicacion(e.target.value)}
-                  placeholder="Ej. Fundación Dra. Carmen Pereyra"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                  placeholder="Ejemplo: 2do nivel, aula 3"
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Dirección
+                </label>
+
+                <textarea
+                  value={direccion}
+                  onChange={(e) => setDireccion(e.target.value)}
+                  placeholder="Dirección completa del lugar"
+                  rows={2}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Capacidad
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
+                    Sector
                   </label>
 
                   <input
-                    type="number"
-                    min="0"
-                    value={capacidad}
-                    onChange={(e) => setCapacidad(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                    type="text"
+                    value={sector}
+                    onChange={(e) => setSector(e.target.value)}
+                    placeholder="Ejemplo: Las Caobas"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Tipo
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
+                    Municipio
                   </label>
 
-                  <select
-                    value={tipoEspacio}
-                    onChange={(e) => setTipoEspacio(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="">Seleccione</option>
-                    {tiposEspacio.map((tipo) => (
-                      <option key={tipo} value={tipo}>
-                        {tipo}
-                      </option>
-                    ))}
-                  </select>
+                  <input
+                    type="text"
+                    value={municipio}
+                    onChange={(e) => setMunicipio(e.target.value)}
+                    placeholder="Ejemplo: Santo Domingo Oeste"
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                  />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Estado
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Provincia
                 </label>
 
-                <select
-                  value={estado}
-                  onChange={(e) => setEstado(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                >
-                  <option value="Activo">Activo</option>
-                  <option value="Inactivo">Inactivo</option>
-                </select>
+                <input
+                  type="text"
+                  value={provincia}
+                  onChange={(e) => setProvincia(e.target.value)}
+                  placeholder="Ejemplo: Santo Domingo"
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                />
               </div>
 
-              <div className="flex flex-col gap-2">
-                <button
-                  type="submit"
-                  disabled={guardando}
-                  className="w-full rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {guardando
-                    ? estaEditando
-                      ? "Actualizando..."
-                      : "Guardando..."
-                    : estaEditando
-                    ? "Actualizar espacio"
-                    : "Guardar espacio"}
-                </button>
-
-                {estaEditando && (
-                  <button
-                    type="button"
-                    onClick={cancelarEdicion}
-                    className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                  >
-                    Cancelar edición
-                  </button>
-                )}
-              </div>
-            </form>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">
-                  Listado de aulas / espacios
-                </h2>
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Referencia
+                </label>
 
-                <p className="mt-1 text-sm text-slate-600">
-                  Total registrados: {aulasFiltradas.length}
-                </p>
+                <textarea
+                  value={referencia}
+                  onChange={(e) => setReferencia(e.target.value)}
+                  placeholder="Referencia para llegar al lugar"
+                  rows={2}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                />
               </div>
-            </div>
 
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              <button
+                type="submit"
+                disabled={guardando}
+                className="w-full rounded-2xl bg-blue-700 px-4 py-4 text-sm font-black text-white shadow-sm hover:bg-blue-800 disabled:opacity-60"
+              >
+                {guardando
+                  ? "Guardando..."
+                  : editandoId
+                  ? "Actualizar aula/lugar"
+                  : "Guardar aula/lugar"}
+              </button>
+
+              {editandoId && (
+                <button
+                  type="button"
+                  onClick={limpiarFormulario}
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50"
+                >
+                  Cancelar edición
+                </button>
+              )}
+            </div>
+          </form>
+
+          <div className="space-y-4">
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <label className="mb-1 block text-sm font-bold text-slate-700">
+                Buscar
+              </label>
+
               <input
                 type="text"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar espacio"
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                placeholder="Buscar por nombre, dirección, sector, municipio o provincia"
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
               />
-
-              <select
-                value={filtroEstado}
-                onChange={(e) => setFiltroEstado(e.target.value)}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-              >
-                <option value="Todos">Todos</option>
-                <option value="Activo">Activos</option>
-                <option value="Inactivo">Inactivos</option>
-              </select>
-
-              <select
-                value={filtroTipo}
-                onChange={(e) => setFiltroTipo(e.target.value)}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-              >
-                <option value="Todos">Todos los tipos</option>
-                {tiposEspacio.map((tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {tipo}
-                  </option>
-                ))}
-              </select>
             </div>
 
-            <div className="mt-5 overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b bg-slate-100 text-left text-slate-700">
-                    <th className="px-3 py-3 font-semibold">Nombre</th>
-                    <th className="px-3 py-3 font-semibold">Ubicación</th>
-                    <th className="px-3 py-3 font-semibold">Capacidad</th>
-                    <th className="px-3 py-3 font-semibold">Tipo</th>
-                    <th className="px-3 py-3 font-semibold">Estado</th>
-                    <th className="px-3 py-3 font-semibold">Acciones</th>
-                  </tr>
-                </thead>
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 px-4 py-4">
+                <h2 className="text-lg font-black text-slate-900">
+                  Listado de aulas/lugares
+                </h2>
 
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="px-3 py-6 text-center text-slate-500"
-                      >
-                        Cargando aulas / espacios...
-                      </td>
-                    </tr>
-                  ) : aulasFiltradas.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="px-3 py-6 text-center text-slate-500"
-                      >
-                        No hay aulas o espacios registrados.
-                      </td>
-                    </tr>
-                  ) : (
-                    aulasFiltradas.map((aula) => (
-                      <tr key={aula.id} className="border-b hover:bg-slate-50">
-                        <td className="px-3 py-3 font-medium text-slate-900">
-                          {aula.nombre}
-                        </td>
+                <p className="mt-1 text-sm text-slate-500">
+                  Mostrando {aulasFiltradas.length} registros.
+                </p>
+              </div>
 
-                        <td className="px-3 py-3 text-slate-600">
-                          {aula.ubicacion || "Sin ubicación"}
-                        </td>
-
-                        <td className="px-3 py-3 text-slate-600">
-                          {aula.capacidad ?? 0}
-                        </td>
-
-                        <td className="px-3 py-3 text-slate-600">
-                          {aula.tipo_espacio}
-                        </td>
-
-                        <td className="px-3 py-3">
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                              aula.estado === "Activo"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-slate-200 text-slate-700"
-                            }`}
-                          >
-                            {aula.estado}
-                          </span>
-                        </td>
-
-                        <td className="px-3 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => iniciarEdicion(aula)}
-                              className="rounded-lg border border-blue-300 px-3 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
+              {loading ? (
+                <div className="p-8 text-center text-sm font-semibold text-slate-500">
+                  Cargando aulas/lugares...
+                </div>
+              ) : aulasFiltradas.length === 0 ? (
+                <div className="p-8 text-center text-sm font-semibold text-slate-500">
+                  No hay aulas/lugares registrados.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {aulasFiltradas.map((aula) => (
+                    <article key={aula.id} className="p-4">
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-black ${
+                                aula.estado === "Activo"
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-slate-200 text-slate-700"
+                              }`}
                             >
-                              Editar
-                            </button>
+                              {aula.estado || "Sin estado"}
+                            </span>
 
-                            {aula.estado === "Activo" ? (
-                              <button
-                                type="button"
-                                onClick={() => cambiarEstado(aula.id, "Inactivo")}
-                                className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-                              >
-                                Inactivar
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => cambiarEstado(aula.id, "Activo")}
-                                className="rounded-lg border border-green-300 px-3 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-50"
-                              >
-                                Activar
-                              </button>
+                            {aula.tipo_lugar && (
+                              <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-700">
+                                {aula.tipo_lugar}
+                              </span>
                             )}
+
+                            {aula.capacidad !== null &&
+                              aula.capacidad !== undefined && (
+                                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
+                                  Capacidad: {aula.capacidad}
+                                </span>
+                              )}
                           </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+
+                          <h3 className="mt-3 text-xl font-black text-slate-900">
+                            {aula.nombre}
+                          </h3>
+
+                          <div className="mt-3 grid gap-3 md:grid-cols-2">
+                            <InfoBox
+                              titulo="Ubicación interna"
+                              valor={aula.ubicacion || "-"}
+                            />
+
+                            <InfoBox
+                              titulo="Dirección"
+                              valor={aula.direccion || "-"}
+                            />
+
+                            <InfoBox
+                              titulo="Sector"
+                              valor={aula.sector || "-"}
+                            />
+
+                            <InfoBox
+                              titulo="Municipio"
+                              valor={aula.municipio || "-"}
+                            />
+
+                            <InfoBox
+                              titulo="Provincia"
+                              valor={aula.provincia || "-"}
+                            />
+
+                            <InfoBox
+                              titulo="Creado"
+                              valor={formatearFecha(aula.created_at)}
+                            />
+                          </div>
+
+                          {aula.referencia && (
+                            <div className="mt-3 rounded-2xl bg-slate-50 p-3">
+                              <p className="text-[11px] font-bold uppercase text-slate-400">
+                                Referencia
+                              </p>
+                              <p className="mt-1 text-sm font-black text-slate-900">
+                                {aula.referencia}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid min-w-full gap-2 sm:grid-cols-2 xl:min-w-[180px] xl:grid-cols-1">
+                          <button
+                            type="button"
+                            onClick={() => editarAula(aula)}
+                            className="rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-blue-800"
+                          >
+                            Editar
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => cambiarEstado(aula)}
+                            className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50"
+                          >
+                            {aula.estado === "Activo"
+                              ? "Desactivar"
+                              : "Activar"}
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
             </div>
-          </section>
+          </div>
         </div>
-      </div>
+      </section>
     </main>
+  );
+}
+
+function InfoBox({ titulo, valor }: { titulo: string; valor: string }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-3">
+      <p className="text-[11px] font-bold uppercase text-slate-400">
+        {titulo}
+      </p>
+      <p className="mt-1 break-words text-sm font-black text-slate-900">
+        {valor}
+      </p>
+    </div>
   );
 }

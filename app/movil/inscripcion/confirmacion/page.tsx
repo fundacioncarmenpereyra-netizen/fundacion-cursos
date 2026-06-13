@@ -386,6 +386,15 @@ export default function ConfirmacionInscripcionPage() {
         )}
 
         <div className="grid grid-cols-1 gap-3">
+
+{codigoDisponible && (
+  <Link
+    href={`/movil/inscripcion/formulario?codigo=${codigoDisponible}`}
+    className="rounded-2xl bg-slate-900 px-4 py-4 text-center text-base font-black text-white shadow-sm active:scale-[0.99]"
+  >
+    Imprimir formulario
+  </Link>
+)}
           {codigoDisponible && (
             <Link
               href={`/movil/inscripcion/documentos?codigo=${codigoDisponible}`}

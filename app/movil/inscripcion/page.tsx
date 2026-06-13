@@ -68,6 +68,7 @@ export default function InscripcionMovilPage() {
   const [whatsapp, setWhatsapp] = useState("");
   const [correo, setCorreo] = useState("");
   const [direccion, setDireccion] = useState("");
+  const [tshirtTalla, setTshirtTalla] = useState("");
 
   const [nombreTutor, setNombreTutor] = useState("");
   const [telefonoTutor, setTelefonoTutor] = useState("");
@@ -262,6 +263,11 @@ export default function InscripcionMovilPage() {
       return;
     }
 
+    if (!tshirtTalla) {
+      setError("Debe seleccionar el tamaño de T-shirt.");
+      return;
+    }
+
     const edad = calcularEdad(fechaNacimiento);
     const esMenorEdad = edad < 18;
 
@@ -288,6 +294,7 @@ export default function InscripcionMovilPage() {
       whatsapp: whatsapp.trim() || null,
       correo: correo.trim() || null,
       direccion: direccion.trim() || null,
+      tshirt_talla: tshirtTalla || null,
       es_menor_edad: esMenorEdad,
       nombre_tutor: esMenorEdad ? nombreTutor.trim() : null,
       telefono_tutor: esMenorEdad ? telefonoTutor.trim() : null,
@@ -348,6 +355,22 @@ export default function InscripcionMovilPage() {
     setMensaje(
       `Inscripción registrada correctamente. Código: ${codigoInscripcion}`
     );
+
+    setNombreCompleto("");
+    setCedula("");
+    setFechaNacimiento("");
+    setSexo("");
+    setTelefono("");
+    setWhatsapp("");
+    setCorreo("");
+    setDireccion("");
+    setTshirtTalla("");
+    setNombreTutor("");
+    setTelefonoTutor("");
+    setCedulaTutor("");
+    setMetodoPagoId("");
+    setTipoBecaId("");
+    setObservacion("");
 
     window.location.href = `/movil/inscripcion/confirmacion?codigo=${codigoInscripcion}`;
 
@@ -604,6 +627,29 @@ export default function InscripcionMovilPage() {
               rows={3}
               className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
             />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-bold text-slate-700">
+              Tamaño de T-shirt
+            </label>
+
+            <select
+              value={tshirtTalla}
+              onChange={(e) => setTshirtTalla(e.target.value)}
+              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="">Seleccione</option>
+              <option value="S">S - Small / Pequeña</option>
+              <option value="M">M - Medium / Mediana</option>
+              <option value="L">L - Large / Grande</option>
+              <option value="XL">XL - Extra Large</option>
+              <option value="XXL">XXL - Doble Extra Large</option>
+            </select>
+
+            <p className="mt-2 text-xs font-semibold text-slate-500">
+              Seleccione la talla de T-shirt del participante.
+            </p>
           </div>
 
           {esMenorEdad && (
