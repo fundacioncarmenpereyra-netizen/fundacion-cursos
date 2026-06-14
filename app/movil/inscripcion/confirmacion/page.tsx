@@ -412,10 +412,10 @@ export default function ConfirmacionInscripcionPage() {
           </Link>
 
           <Link
-            href="/movil/catalogos"
+            href="/estudiantes/panel"
             className="rounded-2xl border border-slate-300 bg-white px-4 py-4 text-center text-base font-black text-slate-700 shadow-sm active:scale-[0.99]"
           >
-            Ir al menú móvil
+            Ir al Panel Principal
           </Link>
         </div>
       </section>

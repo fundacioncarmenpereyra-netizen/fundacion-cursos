@@ -4,6 +4,15 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+type EstudianteSesion = {
+  auth_user_id: string;
+  participante_id: string;
+  nombre_completo: string;
+  cedula: string | null;
+  telefono: string | null;
+  correo: string | null;
+};
+
 type RelacionCurso =
   | {
       nombre: string;
@@ -26,6 +35,17 @@ type RelacionNombre =
     }[]
   | null;
 
+type RelacionHorario =
+  | {
+      nombre: string;
+      dias: string | null;
+    }
+  | {
+      nombre: string;
+      dias: string | null;
+    }[]
+  | null;
+
 type ProgramacionCurso = {
   id: string;
   fecha_inicio: string | null;
@@ -35,12 +55,27 @@ type ProgramacionCurso = {
   estado: string;
   cursos: RelacionCurso;
   modalidades: RelacionNombre;
-  horarios: RelacionNombre;
+  horarios: RelacionHorario;
 };
 
-type CatalogoSimple = {
+type InscripcionExistente = {
   id: string;
-  nombre: string;
+  codigo_inscripcion: string | null;
+  estado: string | null;
+  participante_id: string | null;
+  programacion_id: string | null;
+  programaciones_cursos:
+    | {
+        id: string;
+        cursos: RelacionCurso;
+        horarios: RelacionHorario;
+      }
+    | {
+        id: string;
+        cursos: RelacionCurso;
+        horarios: RelacionHorario;
+      }[]
+    | null;
 };
 
 function obtenerPrimero<T>(valor: T | T[] | null | undefined): T | null {
@@ -49,34 +84,21 @@ function obtenerPrimero<T>(valor: T | T[] | null | undefined): T | null {
   return valor;
 }
 
+function esUuidValido(valor: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    valor,
+  );
+}
+
 export default function InscripcionMovilPage() {
+  const [sesion, setSesion] = useState<EstudianteSesion | null>(null);
   const [programacionId, setProgramacionId] = useState("");
   const [programacion, setProgramacion] = useState<ProgramacionCurso | null>(
-    null
+    null,
   );
 
-  const [condiciones, setCondiciones] = useState<CatalogoSimple[]>([]);
-  const [metodosPago, setMetodosPago] = useState<CatalogoSimple[]>([]);
-  const [tiposBeca, setTiposBeca] = useState<CatalogoSimple[]>([]);
   const [estadoRecibidaId, setEstadoRecibidaId] = useState("");
-
-  const [nombreCompleto, setNombreCompleto] = useState("");
-  const [cedula, setCedula] = useState("");
-  const [fechaNacimiento, setFechaNacimiento] = useState("");
-  const [sexo, setSexo] = useState("");
-  const [telefono, setTelefono] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
-  const [correo, setCorreo] = useState("");
-  const [direccion, setDireccion] = useState("");
   const [tshirtTalla, setTshirtTalla] = useState("");
-
-  const [nombreTutor, setNombreTutor] = useState("");
-  const [telefonoTutor, setTelefonoTutor] = useState("");
-  const [cedulaTutor, setCedulaTutor] = useState("");
-
-  const [condicionId, setCondicionId] = useState("");
-  const [metodoPagoId, setMetodoPagoId] = useState("");
-  const [tipoBecaId, setTipoBecaId] = useState("");
   const [observacion, setObservacion] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -85,15 +107,48 @@ export default function InscripcionMovilPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const sesionGuardada = localStorage.getItem("estudiante_sesion");
+
+    if (!sesionGuardada) {
+      setError(
+        "Debe iniciar sesión como estudiante antes de realizar una inscripción.",
+      );
+      return;
+    }
+
+    try {
+      const datos = JSON.parse(sesionGuardada) as EstudianteSesion;
+
+      if (!datos.participante_id) {
+        localStorage.removeItem("estudiante_sesion");
+        setError(
+          "La sesión del estudiante no es válida. Favor iniciar sesión nuevamente.",
+        );
+        return;
+      }
+
+      setSesion(datos);
+    } catch (error) {
+      console.error("Error leyendo sesión del estudiante:", error);
+      localStorage.removeItem("estudiante_sesion");
+      setError(
+        "La sesión del estudiante no se pudo leer. Favor iniciar sesión nuevamente.",
+      );
+      return;
+    }
+
     const params = new URLSearchParams(window.location.search);
     const id = params.get("programacion") || "";
     setProgramacionId(id);
 
-    if (id) {
-      cargarDatos(id);
-    } else {
-      setError("No se recibió la programación del curso.");
+    if (!id || !esUuidValido(id)) {
+      setError(
+        "El enlace de inscripción no es válido. Favor verificar el curso seleccionado.",
+      );
+      return;
     }
+
+    cargarDatos(id);
   }, []);
 
   async function cargarDatos(id: string) {
@@ -119,52 +174,30 @@ export default function InscripcionMovilPage() {
           nombre
         ),
         horarios (
-          nombre
+          nombre,
+          dias
         )
-      `
+      `,
       )
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
     if (programacionError) {
-      console.error("Error programación:", programacionError);
+      console.error("Error cargando programación:", programacionError);
       setError(`Error cargando el curso: ${programacionError.message}`);
       setProgramacion(null);
-    } else {
-      setProgramacion(programacionData as ProgramacionCurso);
+      setLoading(false);
+      return;
     }
 
-    const { data: condicionesData } = await supabase
-      .from("condiciones_participante")
-      .select("id, nombre")
-      .eq("estado", "Activo")
-      .order("nombre", { ascending: true });
-
-    setCondiciones(condicionesData || []);
-
-    const condicionRegular = (condicionesData || []).find(
-      (item) => item.nombre.toLowerCase() === "regular"
-    );
-
-    if (condicionRegular) {
-      setCondicionId(condicionRegular.id);
+    if (!programacionData) {
+      setError("No se encontró la programación del curso seleccionada.");
+      setProgramacion(null);
+      setLoading(false);
+      return;
     }
 
-    const { data: metodosData } = await supabase
-      .from("metodos_pago")
-      .select("id, nombre")
-      .eq("estado", "Activo")
-      .order("nombre", { ascending: true });
-
-    setMetodosPago(metodosData || []);
-
-    const { data: becasData } = await supabase
-      .from("tipos_beca")
-      .select("id, nombre")
-      .eq("estado", "Activo")
-      .order("nombre", { ascending: true });
-
-    setTiposBeca(becasData || []);
+    setProgramacion(programacionData as ProgramacionCurso);
 
     const { data: estadoData } = await supabase
       .from("estados_inscripcion")
@@ -179,22 +212,6 @@ export default function InscripcionMovilPage() {
     }
 
     setLoading(false);
-  }
-
-  function calcularEdad(fecha: string) {
-    if (!fecha) return 0;
-
-    const nacimiento = new Date(fecha);
-    const hoy = new Date();
-
-    let edad = hoy.getFullYear() - nacimiento.getFullYear();
-    const mes = hoy.getMonth() - nacimiento.getMonth();
-
-    if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
-      edad--;
-    }
-
-    return edad;
   }
 
   function generarCodigoInscripcion() {
@@ -232,34 +249,169 @@ export default function InscripcionMovilPage() {
     }).format(Number(valor || 0));
   }
 
+  function normalizarTexto(valor: string | null | undefined) {
+    return (valor || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+  }
+
+  function obtenerDiasComoLista(valor: string | null | undefined) {
+    const texto = normalizarTexto(valor);
+
+    if (!texto) return [];
+
+    const dias: string[] = [];
+    const textoConEspacios = ` ${texto.replace(/[,.]/g, " ")} `;
+
+    const mapa = [
+      { clave: "lunes", tokens: ["lunes", " lu ", "lu-", "l "] },
+      { clave: "martes", tokens: ["martes", " ma ", "ma-", "m "] },
+      {
+        clave: "miercoles",
+        tokens: ["miercoles", "miércoles", " mi ", "mi-", "x "],
+      },
+      { clave: "jueves", tokens: ["jueves", " ju ", "ju-", "j "] },
+      { clave: "viernes", tokens: ["viernes", " vi ", "vi-", "v "] },
+      { clave: "sabado", tokens: ["sabado", "sábado", " sa ", "sa-", "s "] },
+      { clave: "domingo", tokens: ["domingo", " do ", "do-", "d "] },
+    ];
+
+    mapa.forEach((dia) => {
+      if (dia.tokens.some((token) => textoConEspacios.includes(token))) {
+        dias.push(dia.clave);
+      }
+    });
+
+    return Array.from(new Set(dias));
+  }
+
+  function tienenDiasEnComun(
+    diasNuevo: string | null | undefined,
+    diasExistente: string | null | undefined,
+  ) {
+    const nuevos = obtenerDiasComoLista(diasNuevo);
+    const existentes = obtenerDiasComoLista(diasExistente);
+
+    if (nuevos.length === 0 || existentes.length === 0) {
+      return true;
+    }
+
+    return nuevos.some((dia) => existentes.includes(dia));
+  }
+
+  async function validarInscripcionDuplicada() {
+    if (!programacion || !sesion?.participante_id) return false;
+
+    const { data: inscripcionesExistentes, error: inscripcionesError } =
+      await supabase
+        .from("inscripciones")
+        .select(
+          `
+          id,
+          codigo_inscripcion,
+          estado,
+          participante_id,
+          programacion_id,
+          programaciones_cursos (
+            id,
+            cursos (
+              nombre,
+              descripcion,
+              precio
+            ),
+            horarios (
+              nombre,
+              dias
+            )
+          )
+        `,
+        )
+        .eq("participante_id", sesion.participante_id);
+
+    if (inscripcionesError) {
+      console.warn("Error validando inscripciones:", inscripcionesError);
+      setError(`Error validando duplicidad: ${inscripcionesError.message}`);
+      return false;
+    }
+
+    const cursoNuevo = obtenerPrimero(programacion.cursos);
+    const horarioNuevo = obtenerPrimero(programacion.horarios);
+    const nombreCursoNuevo = normalizarTexto(cursoNuevo?.nombre);
+    const nombreHorarioNuevo = normalizarTexto(horarioNuevo?.nombre);
+
+    for (const inscripcion of (inscripcionesExistentes ||
+      []) as InscripcionExistente[]) {
+      const estadoInscripcion = normalizarTexto(inscripcion.estado);
+
+      if (
+        estadoInscripcion.includes("anulada") ||
+        estadoInscripcion.includes("cancelada")
+      ) {
+        continue;
+      }
+
+      const programacionExistente = obtenerPrimero(
+        inscripcion.programaciones_cursos,
+      );
+
+      if (!programacionExistente) continue;
+
+      const cursoExistente = obtenerPrimero(programacionExistente.cursos);
+      const horarioExistente = obtenerPrimero(programacionExistente.horarios);
+      const nombreCursoExistente = normalizarTexto(cursoExistente?.nombre);
+      const nombreHorarioExistente = normalizarTexto(horarioExistente?.nombre);
+
+      if (
+        nombreCursoNuevo &&
+        nombreCursoExistente &&
+        nombreCursoNuevo === nombreCursoExistente
+      ) {
+        setError(
+          `Ya tiene una inscripción registrada para el curso ${
+            cursoExistente?.nombre || "seleccionado"
+          }. Código: ${inscripcion.codigo_inscripcion || "sin código"}.`,
+        );
+        return false;
+      }
+
+      if (
+        nombreHorarioNuevo &&
+        nombreHorarioExistente &&
+        nombreHorarioNuevo === nombreHorarioExistente &&
+        tienenDiasEnComun(horarioNuevo?.dias, horarioExistente?.dias)
+      ) {
+        setError(
+          `Ya tiene otro curso inscrito en el mismo horario y día (${
+            horarioExistente?.nombre || "horario registrado"
+          }). Código: ${inscripcion.codigo_inscripcion || "sin código"}.`,
+        );
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   async function guardarInscripcion(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     setError("");
     setMensaje("");
 
-    if (!programacionId) {
+    if (!sesion?.participante_id) {
+      setError("Debe iniciar sesión como estudiante antes de inscribirse.");
+      return;
+    }
+
+    if (!programacionId || !esUuidValido(programacionId)) {
       setError("No se encontró la programación del curso.");
       return;
     }
 
-    if (!nombreCompleto.trim()) {
-      setError("El nombre completo es obligatorio.");
-      return;
-    }
-
-    if (!fechaNacimiento) {
-      setError("La fecha de nacimiento es obligatoria.");
-      return;
-    }
-
-    if (!telefono.trim()) {
-      setError("El teléfono es obligatorio.");
-      return;
-    }
-
-    if (!condicionId) {
-      setError("Debe seleccionar la condición del participante.");
+    if (!programacion) {
+      setError("No se pudo cargar la información del curso.");
       return;
     }
 
@@ -268,69 +420,26 @@ export default function InscripcionMovilPage() {
       return;
     }
 
-    const edad = calcularEdad(fechaNacimiento);
-    const esMenorEdad = edad < 18;
+    const puedeInscribirse = await validarInscripcionDuplicada();
 
-    if (esMenorEdad) {
-      if (!nombreTutor.trim()) {
-        setError("Para menores de edad debe indicar el nombre del tutor.");
-        return;
-      }
-
-      if (!telefonoTutor.trim()) {
-        setError("Para menores de edad debe indicar el teléfono del tutor.");
-        return;
-      }
+    if (!puedeInscribirse) {
+      return;
     }
 
     setGuardando(true);
-
-    const participantePayload = {
-      nombre_completo: nombreCompleto.trim(),
-      cedula: cedula.trim() || null,
-      fecha_nacimiento: fechaNacimiento,
-      sexo: sexo || null,
-      telefono: telefono.trim(),
-      whatsapp: whatsapp.trim() || null,
-      correo: correo.trim() || null,
-      direccion: direccion.trim() || null,
-      tshirt_talla: tshirtTalla || null,
-      es_menor_edad: esMenorEdad,
-      nombre_tutor: esMenorEdad ? nombreTutor.trim() : null,
-      telefono_tutor: esMenorEdad ? telefonoTutor.trim() : null,
-      cedula_tutor: esMenorEdad ? cedulaTutor.trim() || null : null,
-      estado: "Activo",
-      updated_at: new Date().toISOString(),
-    };
-
-    const { data: participanteData, error: participanteError } = await supabase
-      .from("participantes")
-      .insert(participantePayload)
-      .select("id")
-      .single();
-
-    if (participanteError || !participanteData?.id) {
-      console.error("Error participante:", participanteError);
-      setError(
-        `Error registrando participante: ${
-          participanteError?.message || "No se recibió el ID del participante."
-        }`
-      );
-      setGuardando(false);
-      return;
-    }
 
     const codigoInscripcion = generarCodigoInscripcion();
     const qrToken = generarQrToken();
     const qrUrl = `${window.location.origin}/movil/qr/${qrToken}`;
 
     const inscripcionPayload = {
-      participante_id: participanteData.id,
+      participante_id: sesion.participante_id,
       programacion_id: programacionId,
       estado_inscripcion_id: estadoRecibidaId || null,
-      condicion_participante_id: condicionId,
-      metodo_pago_id: metodoPagoId || null,
-      tipo_beca_id: tipoBecaId || null,
+      condicion_participante_id: null,
+      metodo_pago_id: null,
+      tipo_beca_id: null,
+      tshirt_talla: tshirtTalla || null,
       codigo_inscripcion: codigoInscripcion,
       qr_token: qrToken,
       qr_url: qrUrl,
@@ -353,23 +462,10 @@ export default function InscripcionMovilPage() {
     }
 
     setMensaje(
-      `Inscripción registrada correctamente. Código: ${codigoInscripcion}`
+      `Inscripción registrada correctamente. Código: ${codigoInscripcion}`,
     );
 
-    setNombreCompleto("");
-    setCedula("");
-    setFechaNacimiento("");
-    setSexo("");
-    setTelefono("");
-    setWhatsapp("");
-    setCorreo("");
-    setDireccion("");
     setTshirtTalla("");
-    setNombreTutor("");
-    setTelefonoTutor("");
-    setCedulaTutor("");
-    setMetodoPagoId("");
-    setTipoBecaId("");
     setObservacion("");
 
     window.location.href = `/movil/inscripcion/confirmacion?codigo=${codigoInscripcion}`;
@@ -380,9 +476,6 @@ export default function InscripcionMovilPage() {
   const curso = obtenerPrimero(programacion?.cursos);
   const modalidad = obtenerPrimero(programacion?.modalidades);
   const horario = obtenerPrimero(programacion?.horarios);
-
-  const edadCalculada = calcularEdad(fechaNacimiento);
-  const esMenorEdad = fechaNacimiento ? edadCalculada < 18 : false;
 
   return (
     <main className="min-h-screen bg-slate-100 pb-24">
@@ -399,15 +492,15 @@ export default function InscripcionMovilPage() {
           </div>
 
           <Link
-            href="/movil/inicio"
+            href="/estudiantes/panel"
             className="rounded-full border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
           >
-            Cursos
+            Panel
           </Link>
         </div>
 
         <p className="mt-2 text-sm text-slate-600">
-          Complete sus datos para solicitar la inscripción.
+          Seleccione su talla de T-shirt para completar la inscripción.
         </p>
       </section>
 
@@ -420,13 +513,49 @@ export default function InscripcionMovilPage() {
 
         {error && (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-            {error}
+            <p>{error}</p>
+
+            {error.toLowerCase().includes("iniciar sesión") && (
+              <Link
+                href="/estudiantes/login"
+                className="mt-3 inline-block rounded-xl bg-red-700 px-4 py-2 text-xs font-black text-white hover:bg-red-800"
+              >
+                Iniciar sesión
+              </Link>
+            )}
           </div>
         )}
 
         {mensaje && (
           <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
             {mensaje}
+          </div>
+        )}
+
+        {sesion && (
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-wide text-blue-700">
+              Estudiante conectado
+            </p>
+
+            <h2 className="mt-1 text-lg font-black text-slate-900">
+              {sesion.nombre_completo}
+            </h2>
+
+            <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+              <p>
+                <span className="font-black text-slate-800">Cédula:</span>{" "}
+                {sesion.cedula || "-"}
+              </p>
+              <p>
+                <span className="font-black text-slate-800">Teléfono:</span>{" "}
+                {sesion.telefono || "-"}
+              </p>
+              <p className="sm:col-span-2">
+                <span className="font-black text-slate-800">Correo:</span>{" "}
+                {sesion.correo || "-"}
+              </p>
+            </div>
           </div>
         )}
 
@@ -481,7 +610,7 @@ export default function InscripcionMovilPage() {
                     programacion.precio_especial &&
                       programacion.precio_especial > 0
                       ? programacion.precio_especial
-                      : curso?.precio
+                      : curso?.precio,
                   )}
                 </p>
               </div>
@@ -489,6 +618,7 @@ export default function InscripcionMovilPage() {
 
             <p className="mt-3 text-sm font-bold text-blue-900">
               Horario: {horario?.nombre || "-"}
+              {horario?.dias ? ` · Días: ${horario.dias}` : ""}
             </p>
           </div>
         )}
@@ -501,132 +631,12 @@ export default function InscripcionMovilPage() {
         >
           <div>
             <h2 className="text-lg font-black text-slate-900">
-              Datos del participante
+              Datos de la inscripción
             </h2>
 
             <p className="mt-1 text-sm text-slate-600">
-              Complete las informaciones básicas del estudiante.
+              Sus datos personales se tomarán automáticamente de su usuario.
             </p>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-bold text-slate-700">
-              Nombre completo
-            </label>
-
-            <input
-              type="text"
-              value={nombreCompleto}
-              onChange={(e) => setNombreCompleto(e.target.value)}
-              placeholder="Nombre completo"
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-bold text-slate-700">
-              Cédula
-            </label>
-
-            <input
-              type="text"
-              value={cedula}
-              onChange={(e) => setCedula(e.target.value)}
-              placeholder="Cédula si aplica"
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-bold text-slate-700">
-              Fecha de nacimiento
-            </label>
-
-            <input
-              type="date"
-              value={fechaNacimiento}
-              onChange={(e) => setFechaNacimiento(e.target.value)}
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-            />
-
-            {fechaNacimiento && (
-              <p className="mt-2 text-xs font-bold text-slate-500">
-                Edad calculada: {edadCalculada} años
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-bold text-slate-700">
-              Sexo
-            </label>
-
-            <select
-              value={sexo}
-              onChange={(e) => setSexo(e.target.value)}
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-            >
-              <option value="">Seleccione</option>
-              <option value="Femenino">Femenino</option>
-              <option value="Masculino">Masculino</option>
-              <option value="Otro">Otro</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-bold text-slate-700">
-              Teléfono
-            </label>
-
-            <input
-              type="text"
-              value={telefono}
-              onChange={(e) => setTelefono(e.target.value)}
-              placeholder="Teléfono"
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-bold text-slate-700">
-              WhatsApp
-            </label>
-
-            <input
-              type="text"
-              value={whatsapp}
-              onChange={(e) => setWhatsapp(e.target.value)}
-              placeholder="WhatsApp"
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-bold text-slate-700">
-              Correo
-            </label>
-
-            <input
-              type="email"
-              value={correo}
-              onChange={(e) => setCorreo(e.target.value)}
-              placeholder="correo@ejemplo.com"
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-bold text-slate-700">
-              Dirección
-            </label>
-
-            <textarea
-              value={direccion}
-              onChange={(e) => setDireccion(e.target.value)}
-              placeholder="Dirección"
-              rows={3}
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-            />
           </div>
 
           <div>
@@ -648,127 +658,8 @@ export default function InscripcionMovilPage() {
             </select>
 
             <p className="mt-2 text-xs font-semibold text-slate-500">
-              Seleccione la talla de T-shirt del participante.
+              Seleccione la talla de T-shirt para esta inscripción.
             </p>
-          </div>
-
-          {esMenorEdad && (
-            <div className="space-y-4 rounded-3xl border border-amber-200 bg-amber-50 p-4">
-              <div>
-                <h3 className="text-base font-black text-amber-900">
-                  Datos del padre, madre o tutor
-                </h3>
-
-                <p className="mt-1 text-sm text-amber-800">
-                  Obligatorio para participantes menores de edad.
-                </p>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-bold text-amber-900">
-                  Nombre del tutor
-                </label>
-
-                <input
-                  type="text"
-                  value={nombreTutor}
-                  onChange={(e) => setNombreTutor(e.target.value)}
-                  placeholder="Nombre del padre, madre o tutor"
-                  className="w-full rounded-2xl border border-amber-300 px-4 py-3 text-base outline-none focus:border-amber-700 focus:ring-2 focus:ring-amber-100"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-bold text-amber-900">
-                  Teléfono del tutor
-                </label>
-
-                <input
-                  type="text"
-                  value={telefonoTutor}
-                  onChange={(e) => setTelefonoTutor(e.target.value)}
-                  placeholder="Teléfono del tutor"
-                  className="w-full rounded-2xl border border-amber-300 px-4 py-3 text-base outline-none focus:border-amber-700 focus:ring-2 focus:ring-amber-100"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-bold text-amber-900">
-                  Cédula del tutor
-                </label>
-
-                <input
-                  type="text"
-                  value={cedulaTutor}
-                  onChange={(e) => setCedulaTutor(e.target.value)}
-                  placeholder="Cédula del tutor"
-                  className="w-full rounded-2xl border border-amber-300 px-4 py-3 text-base outline-none focus:border-amber-700 focus:ring-2 focus:ring-amber-100"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="border-t border-slate-200 pt-4">
-            <h2 className="text-lg font-black text-slate-900">
-              Condición y pago
-            </h2>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-bold text-slate-700">
-              Condición del participante
-            </label>
-
-            <select
-              value={condicionId}
-              onChange={(e) => setCondicionId(e.target.value)}
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-            >
-              <option value="">Seleccione</option>
-              {condiciones.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-bold text-slate-700">
-              Método de pago
-            </label>
-
-            <select
-              value={metodoPagoId}
-              onChange={(e) => setMetodoPagoId(e.target.value)}
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-            >
-              <option value="">Pendiente / No aplica</option>
-              {metodosPago.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-bold text-slate-700">
-              Tipo de beca
-            </label>
-
-            <select
-              value={tipoBecaId}
-              onChange={(e) => setTipoBecaId(e.target.value)}
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-            >
-              <option value="">No aplica</option>
-              {tiposBeca.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.nombre}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div>
@@ -779,7 +670,7 @@ export default function InscripcionMovilPage() {
             <textarea
               value={observacion}
               onChange={(e) => setObservacion(e.target.value)}
-              placeholder="Comentario adicional"
+              placeholder="Comentario adicional opcional"
               rows={3}
               className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
             />
@@ -787,7 +678,7 @@ export default function InscripcionMovilPage() {
 
           <button
             type="submit"
-            disabled={guardando}
+            disabled={guardando || loading || !sesion || !programacion}
             className="w-full rounded-2xl bg-blue-700 px-4 py-4 text-base font-black text-white shadow-sm disabled:opacity-60"
           >
             {guardando ? "Registrando inscripción..." : "Enviar inscripción"}
