@@ -13,6 +13,19 @@ type EstudianteSesion = {
   correo: string | null;
 };
 
+type ParticipanteDetalle = {
+  id: string;
+  fecha_nacimiento: string | null;
+  sexo: string | null;
+  telefono: string | null;
+  whatsapp: string | null;
+  direccion: string | null;
+  es_menor_edad: boolean | null;
+  nombre_tutor: string | null;
+  telefono_tutor: string | null;
+  cedula_tutor: string | null;
+};
+
 type RelacionCurso =
   | {
       nombre: string;
@@ -98,6 +111,17 @@ export default function InscripcionMovilPage() {
   );
 
   const [estadoRecibidaId, setEstadoRecibidaId] = useState("");
+
+  const [fechaNacimiento, setFechaNacimiento] = useState("");
+  const [sexo, setSexo] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [direccion, setDireccion] = useState("");
+  const [esMenorEdad, setEsMenorEdad] = useState(false);
+  const [nombreTutor, setNombreTutor] = useState("");
+  const [telefonoTutor, setTelefonoTutor] = useState("");
+  const [cedulaTutor, setCedulaTutor] = useState("");
+
   const [tshirtTalla, setTshirtTalla] = useState("");
   const [observacion, setObservacion] = useState("");
 
@@ -128,6 +152,9 @@ export default function InscripcionMovilPage() {
       }
 
       setSesion(datos);
+      setTelefono(datos.telefono || "");
+      setWhatsapp(datos.telefono || "");
+      cargarParticipante(datos.participante_id);
     } catch (error) {
       console.error("Error leyendo sesión del estudiante:", error);
       localStorage.removeItem("estudiante_sesion");
@@ -150,6 +177,46 @@ export default function InscripcionMovilPage() {
 
     cargarDatos(id);
   }, []);
+
+  async function cargarParticipante(participanteId: string) {
+    const { data, error } = await supabase
+      .from("participantes")
+      .select(
+        `
+        id,
+        fecha_nacimiento,
+        sexo,
+        telefono,
+        whatsapp,
+        direccion,
+        es_menor_edad,
+        nombre_tutor,
+        telefono_tutor,
+        cedula_tutor
+      `,
+      )
+      .eq("id", participanteId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error cargando datos del participante:", error);
+      return;
+    }
+
+    const participante = data as ParticipanteDetalle | null;
+
+    if (!participante) return;
+
+    setFechaNacimiento(participante.fecha_nacimiento || "");
+    setSexo(participante.sexo || "");
+    setTelefono(participante.telefono || "");
+    setWhatsapp(participante.whatsapp || participante.telefono || "");
+    setDireccion(participante.direccion || "");
+    setEsMenorEdad(Boolean(participante.es_menor_edad));
+    setNombreTutor(participante.nombre_tutor || "");
+    setTelefonoTutor(participante.telefono_tutor || "");
+    setCedulaTutor(participante.cedula_tutor || "");
+  }
 
   async function cargarDatos(id: string) {
     setLoading(true);
@@ -415,6 +482,43 @@ export default function InscripcionMovilPage() {
       return;
     }
 
+    if (!fechaNacimiento) {
+      setError("Debe digitar su fecha de nacimiento.");
+      return;
+    }
+
+    if (!sexo) {
+      setError("Debe seleccionar el sexo.");
+      return;
+    }
+
+    if (!telefono.trim()) {
+      setError("Debe digitar un teléfono de contacto.");
+      return;
+    }
+
+    if (!direccion.trim()) {
+      setError("Debe digitar su dirección.");
+      return;
+    }
+
+    if (esMenorEdad) {
+      if (!nombreTutor.trim()) {
+        setError("Debe digitar el nombre del tutor.");
+        return;
+      }
+
+      if (!telefonoTutor.trim()) {
+        setError("Debe digitar el teléfono del tutor.");
+        return;
+      }
+
+      if (!cedulaTutor.trim()) {
+        setError("Debe digitar la cédula del tutor.");
+        return;
+      }
+    }
+
     if (!tshirtTalla) {
       setError("Debe seleccionar el tamaño de T-shirt.");
       return;
@@ -427,6 +531,29 @@ export default function InscripcionMovilPage() {
     }
 
     setGuardando(true);
+
+    const { error: participanteError } = await supabase
+      .from("participantes")
+      .update({
+        fecha_nacimiento: fechaNacimiento || null,
+        sexo: sexo || null,
+        telefono: telefono.trim() || null,
+        whatsapp: whatsapp.trim() || telefono.trim() || null,
+        direccion: direccion.trim() || null,
+        es_menor_edad: esMenorEdad,
+        nombre_tutor: esMenorEdad ? nombreTutor.trim() || null : null,
+        telefono_tutor: esMenorEdad ? telefonoTutor.trim() || null : null,
+        cedula_tutor: esMenorEdad ? cedulaTutor.trim() || null : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", sesion.participante_id);
+
+    if (participanteError) {
+      console.error("Error actualizando participante:", participanteError);
+      setError(`Error actualizando datos del estudiante: ${participanteError.message}`);
+      setGuardando(false);
+      return;
+    }
 
     const codigoInscripcion = generarCodigoInscripcion();
     const qrToken = generarQrToken();
@@ -500,7 +627,7 @@ export default function InscripcionMovilPage() {
         </div>
 
         <p className="mt-2 text-sm text-slate-600">
-          Seleccione su talla de T-shirt para completar la inscripción.
+          Complete los datos requeridos para finalizar la solicitud de inscripción.
         </p>
       </section>
 
@@ -631,11 +758,166 @@ export default function InscripcionMovilPage() {
         >
           <div>
             <h2 className="text-lg font-black text-slate-900">
+              Datos complementarios del estudiante
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-600">
+              Estos datos completan su expediente académico para la solicitud.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-bold text-slate-700">
+                Fecha de nacimiento
+              </label>
+
+              <input
+                type="date"
+                value={fechaNacimiento}
+                onChange={(e) => setFechaNacimiento(e.target.value)}
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-bold text-slate-700">
+                Sexo
+              </label>
+
+              <select
+                value={sexo}
+                onChange={(e) => setSexo(e.target.value)}
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">Seleccione</option>
+                <option value="Femenino">Femenino</option>
+                <option value="Masculino">Masculino</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-bold text-slate-700">
+                Teléfono
+              </label>
+
+              <input
+                type="tel"
+                value={telefono}
+                onChange={(e) => setTelefono(e.target.value)}
+                placeholder="Teléfono de contacto"
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-bold text-slate-700">
+                WhatsApp
+              </label>
+
+              <input
+                type="tel"
+                value={whatsapp}
+                onChange={(e) => setWhatsapp(e.target.value)}
+                placeholder="WhatsApp"
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-bold text-slate-700">
+              Dirección
+            </label>
+
+            <textarea
+              value={direccion}
+              onChange={(e) => setDireccion(e.target.value)}
+              placeholder="Digite su dirección completa"
+              rows={3}
+              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <label className="flex items-center gap-3 text-sm font-black text-slate-800">
+              <input
+                type="checkbox"
+                checked={esMenorEdad}
+                onChange={(e) => setEsMenorEdad(e.target.checked)}
+                className="h-5 w-5 rounded border-slate-300"
+              />
+              El estudiante es menor de edad
+            </label>
+          </div>
+
+          {esMenorEdad && (
+            <div className="space-y-4 rounded-3xl border border-amber-200 bg-amber-50 p-4">
+              <div>
+                <h3 className="text-base font-black text-amber-900">
+                  Datos del tutor
+                </h3>
+
+                <p className="mt-1 text-sm text-amber-800">
+                  Complete los datos del padre, madre o tutor responsable.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Nombre del tutor
+                </label>
+
+                <input
+                  type="text"
+                  value={nombreTutor}
+                  onChange={(e) => setNombreTutor(e.target.value)}
+                  placeholder="Nombre completo del tutor"
+                  className="w-full rounded-2xl border border-amber-300 px-4 py-3 text-base outline-none focus:border-amber-700 focus:ring-2 focus:ring-amber-100"
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
+                    Teléfono del tutor
+                  </label>
+
+                  <input
+                    type="tel"
+                    value={telefonoTutor}
+                    onChange={(e) => setTelefonoTutor(e.target.value)}
+                    placeholder="Teléfono del tutor"
+                    className="w-full rounded-2xl border border-amber-300 px-4 py-3 text-base outline-none focus:border-amber-700 focus:ring-2 focus:ring-amber-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-bold text-slate-700">
+                    Cédula del tutor
+                  </label>
+
+                  <input
+                    type="text"
+                    value={cedulaTutor}
+                    onChange={(e) => setCedulaTutor(e.target.value)}
+                    placeholder="Cédula del tutor"
+                    className="w-full rounded-2xl border border-amber-300 px-4 py-3 text-base outline-none focus:border-amber-700 focus:ring-2 focus:ring-amber-100"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="border-t border-slate-200 pt-4">
+            <h2 className="text-lg font-black text-slate-900">
               Datos de la inscripción
             </h2>
 
             <p className="mt-1 text-sm text-slate-600">
-              Sus datos personales se tomarán automáticamente de su usuario.
+              Estos datos corresponden específicamente al curso seleccionado.
             </p>
           </div>
 

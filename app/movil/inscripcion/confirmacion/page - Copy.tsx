@@ -378,45 +378,44 @@ export default function ConfirmacionInscripcionPage() {
               </p>
 
               <p className="mt-1 text-sm leading-5 text-amber-800">
-                Para completar su expediente, presione el botón
-                <strong> Subir documentos ahora</strong>. Luego podrá volver al
-                panel del estudiante para dar seguimiento a su solicitud.
+                La Fundación revisará su solicitud. Presente este código cuando
+                sea requerido. También puede subir los documentos solicitados.
               </p>
             </div>
           </>
         )}
 
         <div className="grid grid-cols-1 gap-3">
+
+{codigoDisponible && (
+  <Link
+    href={`/movil/inscripcion/formulario?codigo=${codigoDisponible}`}
+    className="rounded-2xl bg-slate-900 px-4 py-4 text-center text-base font-black text-white shadow-sm active:scale-[0.99]"
+  >
+    Imprimir formulario
+  </Link>
+)}
           {codigoDisponible && (
             <Link
               href={`/movil/inscripcion/documentos?codigo=${codigoDisponible}`}
               className="rounded-2xl bg-green-600 px-4 py-4 text-center text-base font-black text-white shadow-sm active:scale-[0.99]"
             >
-              Subir documentos ahora
+              Subir documentos
             </Link>
           )}
-
-          {codigoDisponible && (
-            <Link
-              href={`/movil/inscripcion/formulario?codigo=${codigoDisponible}`}
-              className="rounded-2xl bg-slate-900 px-4 py-4 text-center text-base font-black text-white shadow-sm active:scale-[0.99]"
-            >
-              Ver / imprimir formulario
-            </Link>
-          )}
-
-          <Link
-            href="/estudiantes/panel"
-            className="rounded-2xl bg-blue-700 px-4 py-4 text-center text-base font-black text-white shadow-sm active:scale-[0.99]"
-          >
-            Volver al panel del estudiante
-          </Link>
 
           <Link
             href="/movil/inicio"
+            className="rounded-2xl bg-blue-700 px-4 py-4 text-center text-base font-black text-white shadow-sm active:scale-[0.99]"
+          >
+            Ver otros cursos
+          </Link>
+
+          <Link
+            href="/estudiantes/panel"
             className="rounded-2xl border border-slate-300 bg-white px-4 py-4 text-center text-base font-black text-slate-700 shadow-sm active:scale-[0.99]"
           >
-            Ver otros cursos disponibles
+            Ir al Panel Principal
           </Link>
         </div>
       </section>

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type InscripcionBase = {
@@ -78,8 +77,6 @@ function obtenerPrimero<T>(valor: T | T[] | null | undefined): T | null {
 }
 
 export default function DocumentosInscripcionPage() {
-  const router = useRouter();
-
   const [codigo, setCodigo] = useState("");
   const [inscripcion, setInscripcion] = useState<InscripcionBase | null>(null);
   const [tiposDocumentos, setTiposDocumentos] = useState<TipoDocumento[]>([]);
@@ -113,71 +110,6 @@ export default function DocumentosInscripcionPage() {
     setLoading(true);
     setError("");
     setMensaje("");
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setError("Debe iniciar sesión para ver o subir documentos.");
-      setInscripcion(null);
-      setLoading(false);
-
-      setTimeout(() => {
-        router.push("/estudiantes/login");
-      }, 900);
-
-      return;
-    }
-
-    const { data: participanteSesion, error: participanteSesionError } =
-      await supabase
-        .from("participantes")
-        .select("id, auth_user_id, nombre_completo, cedula, telefono, correo, estado")
-        .eq("auth_user_id", user.id)
-        .maybeSingle();
-
-    if (participanteSesionError) {
-      console.error("Error validando estudiante:", participanteSesionError);
-      setError(`Error validando estudiante: ${participanteSesionError.message}`);
-      setInscripcion(null);
-      setLoading(false);
-      return;
-    }
-
-    if (!participanteSesion) {
-      setError("No se encontró un perfil de estudiante vinculado a este usuario.");
-      setInscripcion(null);
-      setLoading(false);
-      return;
-    }
-
-    if ((participanteSesion.estado || "").toLowerCase() !== "activo") {
-      await supabase.auth.signOut();
-      localStorage.removeItem("estudiante_sesion");
-      setError("Este usuario de estudiante no está activo.");
-      setInscripcion(null);
-      setLoading(false);
-
-      setTimeout(() => {
-        router.push("/estudiantes/login");
-      }, 900);
-
-      return;
-    }
-
-    localStorage.setItem(
-      "estudiante_sesion",
-      JSON.stringify({
-        auth_user_id: user.id,
-        participante_id: participanteSesion.id,
-        nombre_completo: participanteSesion.nombre_completo,
-        cedula: participanteSesion.cedula,
-        telefono: participanteSesion.telefono,
-        correo: participanteSesion.correo,
-      })
-    );
 
     const { data: inscripcionData, error: inscripcionError } = await supabase
       .from("inscripciones")
@@ -216,14 +148,6 @@ export default function DocumentosInscripcionPage() {
     }
 
     const detalle = inscripcionData as InscripcionBase;
-
-    if (detalle.participante_id !== participanteSesion.id) {
-      setError("No tiene permiso para ver o subir documentos de esta inscripción.");
-      setInscripcion(null);
-      setLoading(false);
-      return;
-    }
-
     setInscripcion(detalle);
 
     const participante = obtenerPrimero(detalle.participantes);
@@ -323,34 +247,6 @@ export default function DocumentosInscripcionPage() {
 
     if (!inscripcion.participante_id) {
       setError("La inscripción no tiene participante asociado.");
-      return;
-    }
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setError("Debe iniciar sesión para subir documentos.");
-      router.push("/estudiantes/login");
-      return;
-    }
-
-    const { data: participanteSesion, error: participanteError } =
-      await supabase
-        .from("participantes")
-        .select("id")
-        .eq("auth_user_id", user.id)
-        .maybeSingle();
-
-    if (participanteError || !participanteSesion) {
-      setError("No se pudo validar el estudiante conectado.");
-      return;
-    }
-
-    if (participanteSesion.id !== inscripcion.participante_id) {
-      setError("No tiene permiso para subir documentos de esta inscripción.");
       return;
     }
 
@@ -702,13 +598,6 @@ export default function DocumentosInscripcionPage() {
 
             <div className="grid grid-cols-1 gap-3">
               <Link
-                href="/estudiantes/panel"
-                className="rounded-2xl bg-blue-700 px-4 py-4 text-center text-base font-black text-white shadow-sm"
-              >
-                Volver al panel
-              </Link>
-
-              <Link
                 href={`/movil/inscripcion/confirmacion?codigo=${codigo}`}
                 className="rounded-2xl border border-slate-300 bg-white px-4 py-4 text-center text-base font-black text-slate-700 shadow-sm"
               >
@@ -717,7 +606,7 @@ export default function DocumentosInscripcionPage() {
 
               <Link
                 href="/movil/inicio"
-                className="rounded-2xl border border-slate-300 bg-white px-4 py-4 text-center text-base font-black text-slate-700 shadow-sm"
+                className="rounded-2xl bg-blue-700 px-4 py-4 text-center text-base font-black text-white shadow-sm"
               >
                 Ver cursos
               </Link>

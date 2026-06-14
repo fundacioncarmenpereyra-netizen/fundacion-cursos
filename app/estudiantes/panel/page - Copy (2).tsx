@@ -79,37 +79,6 @@ type Documento = {
   archivo_url: string | null;
 };
 
-type Calificacion = {
-  id: string;
-  inscripcion_id: string | null;
-  participante_id: string | null;
-  programacion_id: string | null;
-  nota_practica: number | null;
-  nota_teorica: number | null;
-  nota_final: number | null;
-  estado: string | null;
-  fecha_evaluacion: string | null;
-};
-
-type Certificado = {
-  id: string;
-  inscripcion_id: string | null;
-  participante_id: string | null;
-  programacion_id: string | null;
-  codigo_certificado: string | null;
-  fecha_emision: string | null;
-  estado: string | null;
-};
-
-type ConfiguracionSistema = {
-  id: string;
-  nombre_institucion: string | null;
-  logo_url: string | null;
-  telefono: string | null;
-  correo: string | null;
-  direccion: string | null;
-};
-
 function obtenerPrimero<T>(valor: T | T[] | null | undefined): T | null {
   if (!valor) return null;
   if (Array.isArray(valor)) return valor[0] || null;
@@ -122,92 +91,41 @@ export default function PanelEstudiantePage() {
   const [sesion, setSesion] = useState<EstudianteSesion | null>(null);
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
   const [documentos, setDocumentos] = useState<Documento[]>([]);
-  const [calificaciones, setCalificaciones] = useState<Calificacion[]>([]);
-  const [certificados, setCertificados] = useState<Certificado[]>([]);
-  const [configuracion, setConfiguracion] = useState<ConfiguracionSistema | null>(null);
-  const [logoError, setLogoError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    cargarConfiguracion();
     cargarSesion();
   }, []);
-
-  async function cargarConfiguracion() {
-    const { data, error } = await supabase
-      .from("configuracion_sistema")
-      .select("id, nombre_institucion, logo_url, telefono, correo, direccion")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Error cargando configuración:", error);
-      return;
-    }
-
-    setConfiguracion(data as ConfiguracionSistema | null);
-  }
 
   async function cargarSesion() {
     setLoading(true);
     setError("");
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    const sesionGuardada = localStorage.getItem("estudiante_sesion");
 
-    if (userError || !user) {
-      localStorage.removeItem("estudiante_sesion");
+    if (!sesionGuardada) {
       router.push("/estudiantes/login");
       return;
     }
 
-    const { data: participante, error: participanteError } = await supabase
-      .from("participantes")
-      .select("id, auth_user_id, nombre_completo, cedula, telefono, correo, estado")
-      .eq("auth_user_id", user.id)
-      .maybeSingle();
+    try {
+      const datos = JSON.parse(sesionGuardada) as EstudianteSesion;
 
-    if (participanteError) {
-      console.error("Error validando estudiante:", participanteError);
-      setError(`Error validando estudiante: ${participanteError.message}`);
+      if (!datos.participante_id) {
+        localStorage.removeItem("estudiante_sesion");
+        router.push("/estudiantes/login");
+        return;
+      }
+
+      setSesion(datos);
+      await cargarInscripciones(datos.participante_id);
+    } catch (error) {
+      console.error("Error leyendo sesión del estudiante:", error);
       localStorage.removeItem("estudiante_sesion");
-      setLoading(false);
+      router.push("/estudiantes/login");
       return;
     }
-
-    if (!participante) {
-      await supabase.auth.signOut();
-      localStorage.removeItem("estudiante_sesion");
-      setError("El usuario autenticado no tiene un perfil de estudiante vinculado.");
-      setLoading(false);
-      return;
-    }
-
-    if ((participante.estado || "").toLowerCase() !== "activo") {
-      await supabase.auth.signOut();
-      localStorage.removeItem("estudiante_sesion");
-      setError("Este usuario de estudiante no está activo.");
-      setLoading(false);
-      return;
-    }
-
-    const sesionValidada: EstudianteSesion = {
-      auth_user_id: user.id,
-      participante_id: participante.id,
-      nombre_completo: participante.nombre_completo,
-      cedula: participante.cedula,
-      telefono: participante.telefono,
-      correo: participante.correo,
-    };
-
-    localStorage.setItem("estudiante_sesion", JSON.stringify(sesionValidada));
-    setSesion(sesionValidada);
-
-    await cargarInscripciones(participante.id);
 
     setLoading(false);
   }
@@ -250,8 +168,6 @@ export default function PanelEstudiantePage() {
       setError(`Error cargando inscripciones: ${error.message}`);
       setInscripciones([]);
       setDocumentos([]);
-      setCalificaciones([]);
-      setCertificados([]);
       return;
     }
 
@@ -262,55 +178,21 @@ export default function PanelEstudiantePage() {
 
     if (ids.length === 0) {
       setDocumentos([]);
-      setCalificaciones([]);
-      setCertificados([]);
       return;
     }
 
-    const [documentosResponse, calificacionesResponse, certificadosResponse] =
-      await Promise.all([
-        supabase
-          .from("participantes_documentos")
-          .select(
-            "id, inscripcion_id, participante_id, estado, nombre_documento, archivo_url"
-          )
-          .in("inscripcion_id", ids),
+    const { data: documentosData, error: documentosError } = await supabase
+      .from("participantes_documentos")
+      .select("id, inscripcion_id, participante_id, estado, nombre_documento, archivo_url")
+      .in("inscripcion_id", ids);
 
-        supabase
-          .from("calificaciones_cursos")
-          .select(
-            "id, inscripcion_id, participante_id, programacion_id, nota_practica, nota_teorica, nota_final, estado, fecha_evaluacion"
-          )
-          .in("inscripcion_id", ids),
-
-        supabase
-          .from("certificados")
-          .select(
-            "id, inscripcion_id, participante_id, programacion_id, codigo_certificado, fecha_emision, estado"
-          )
-          .in("inscripcion_id", ids),
-      ]);
-
-    if (documentosResponse.error) {
-      console.error("Error cargando documentos:", documentosResponse.error);
+    if (documentosError) {
+      console.error("Error cargando documentos:", documentosError);
       setDocumentos([]);
-    } else {
-      setDocumentos((documentosResponse.data || []) as Documento[]);
+      return;
     }
 
-    if (calificacionesResponse.error) {
-      console.error("Error cargando calificaciones:", calificacionesResponse.error);
-      setCalificaciones([]);
-    } else {
-      setCalificaciones((calificacionesResponse.data || []) as Calificacion[]);
-    }
-
-    if (certificadosResponse.error) {
-      console.error("Error cargando certificados:", certificadosResponse.error);
-      setCertificados([]);
-    } else {
-      setCertificados((certificadosResponse.data || []) as Certificado[]);
-    }
+    setDocumentos((documentosData || []) as Documento[]);
   }
 
   async function cerrarSesion() {
@@ -352,11 +234,10 @@ export default function PanelEstudiantePage() {
 
     if (docs.length === 0) {
       return {
-        texto: "Falta subir documentos",
+        texto: "Documentos pendientes",
         clase: "bg-amber-100 text-amber-700",
         boton: "Subir documentos",
         botonClase: "bg-amber-600 hover:bg-amber-700",
-        mostrarAlerta: true,
       };
     }
 
@@ -368,17 +249,12 @@ export default function PanelEstudiantePage() {
       (item) => (item.estado || "").toLowerCase() === "rechazado"
     ).length;
 
-    const pendientes = docs.filter(
-      (item) => (item.estado || "").toLowerCase() === "pendiente"
-    ).length;
-
     if (rechazados > 0) {
       return {
         texto: `${rechazados} rechazado(s)`,
         clase: "bg-red-100 text-red-700",
         boton: "Completar documentos",
         botonClase: "bg-red-600 hover:bg-red-700",
-        mostrarAlerta: true,
       };
     }
 
@@ -388,111 +264,14 @@ export default function PanelEstudiantePage() {
         clase: "bg-green-100 text-green-700",
         boton: "Ver documentos",
         botonClase: "bg-green-700 hover:bg-green-800",
-        mostrarAlerta: false,
-      };
-    }
-
-    if (pendientes > 0) {
-      return {
-        texto: "Documentos enviados / En revisión",
-        clase: "bg-blue-100 text-blue-700",
-        boton: "Ver documentos",
-        botonClase: "bg-blue-700 hover:bg-blue-800",
-        mostrarAlerta: false,
       };
     }
 
     return {
-      texto: "Documentos en revisión",
+      texto: `${aprobados}/${docs.length} aprobados`,
       clase: "bg-blue-100 text-blue-700",
-      boton: "Ver documentos",
+      boton: "Completar documentos",
       botonClase: "bg-blue-700 hover:bg-blue-800",
-      mostrarAlerta: false,
-    };
-  }
-
-  function calificacionDeInscripcion(inscripcionId: string) {
-    return calificaciones.find((item) => item.inscripcion_id === inscripcionId);
-  }
-
-  function resumenCalificacion(inscripcionId: string) {
-    const calificacion = calificacionDeInscripcion(inscripcionId);
-
-    if (!calificacion) {
-      return {
-        texto: "Pendiente de calificación",
-        detalle: "Aún no evaluado",
-        clase: "bg-slate-100 text-slate-700",
-      };
-    }
-
-    const estado = calificacion.estado || "Pendiente";
-    const notaFinal =
-      calificacion.nota_final !== null && calificacion.nota_final !== undefined
-        ? Number(calificacion.nota_final).toLocaleString("es-DO", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })
-        : null;
-
-    const texto =
-      estado === "Aprobado"
-        ? `Aprobado${notaFinal ? ` - ${notaFinal}` : ""}`
-        : estado === "Reprobado"
-        ? `Reprobado${notaFinal ? ` - ${notaFinal}` : ""}`
-        : "En proceso de evaluación";
-
-    const clase =
-      estado === "Aprobado"
-        ? "bg-green-100 text-green-700"
-        : estado === "Reprobado"
-        ? "bg-red-100 text-red-700"
-        : "bg-amber-100 text-amber-700";
-
-    return {
-      texto,
-      detalle: calificacion.fecha_evaluacion
-        ? `Evaluado: ${formatearFecha(calificacion.fecha_evaluacion)}`
-        : "Pendiente",
-      clase,
-    };
-  }
-
-  function certificadoDeInscripcion(inscripcionId: string) {
-    return certificados.find((item) => item.inscripcion_id === inscripcionId);
-  }
-
-  function resumenCertificado(inscripcionId: string) {
-    const certificado = certificadoDeInscripcion(inscripcionId);
-
-    if (!certificado) {
-      return {
-        texto: "Certificado pendiente",
-        detalle: "No disponible",
-        clase: "bg-slate-100 text-slate-700",
-        boton: null as string | null,
-        href: null as string | null,
-      };
-    }
-
-    const estado = certificado.estado || "Emitido";
-
-    if (estado === "Anulado") {
-      return {
-        texto: "Certificado anulado",
-        detalle: certificado.codigo_certificado || "Anulado",
-        clase: "bg-red-100 text-red-700",
-        boton: null as string | null,
-        href: null as string | null,
-      };
-    }
-
-    return {
-      texto: "Certificado disponible",
-      detalle: certificado.codigo_certificado || "Emitido",
-      clase: "bg-green-100 text-green-700",
-      boton: "Ver certificado",
-      href: `/certificados/imprimir/${certificado.id}`,
     };
   }
 
@@ -517,14 +296,12 @@ export default function PanelEstudiantePage() {
   const tieneDocumentosPendientes = useMemo(() => {
     return inscripciones.some((item) => {
       const resumen = resumenDocumentos(item.id);
-      return resumen.mostrarAlerta;
+      return (
+        resumen.boton === "Subir documentos" ||
+        resumen.boton === "Completar documentos"
+      );
     });
   }, [inscripciones, documentos]);
-
-  const nombreInstitucion =
-    configuracion?.nombre_institucion || "Fundación Dra. Carmen Pereyra";
-
-  const logoUrl = configuracion?.logo_url || "/logo-fundacion.jpeg";
 
   if (loading) {
     return (
@@ -543,33 +320,18 @@ export default function PanelEstudiantePage() {
       <section className="mx-auto max-w-7xl space-y-6">
         <div className="rounded-[32px] bg-gradient-to-r from-blue-950 via-blue-800 to-slate-900 p-6 text-white shadow-xl md:p-8">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center">
-              <div className="grid h-24 w-24 shrink-0 place-items-center rounded-3xl bg-white p-3 shadow-lg ring-1 ring-white/30">
-                {!logoError && logoUrl ? (
-                  <img
-                    src={logoUrl}
-                    alt={`Logo ${nombreInstitucion}`}
-                    className="h-full w-full object-contain"
-                    onError={() => setLogoError(true)}
-                  />
-                ) : (
-                  <span className="text-xs font-black text-blue-900">LOGO</span>
-                )}
-              </div>
+            <div>
+              <p className="text-sm font-black uppercase tracking-[0.25em] text-blue-200">
+                Fundación Dra. Carmen Pereyra
+              </p>
 
-              <div>
-                <p className="text-sm font-black uppercase tracking-[0.25em] text-blue-200">
-                  {nombreInstitucion}
-                </p>
+              <h1 className="mt-3 text-3xl font-black md:text-5xl">
+                Panel del estudiante
+              </h1>
 
-                <h1 className="mt-3 text-3xl font-black md:text-5xl">
-                  Panel del estudiante
-                </h1>
-
-                <p className="mt-3 text-sm font-semibold text-blue-100 md:text-base">
-                  Bienvenido(a), {sesion?.nombre_completo || "estudiante"}.
-                </p>
-              </div>
+              <p className="mt-3 text-sm font-semibold text-blue-100 md:text-base">
+                Bienvenido(a), {sesion?.nombre_completo || "estudiante"}.
+              </p>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[360px]">
@@ -599,7 +361,7 @@ export default function PanelEstudiantePage() {
 
         {tieneDocumentosPendientes && (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm font-bold text-amber-800">
-            Tiene documentos pendientes por subir o corregir. Revise la columna
+            Tiene documentos pendientes por subir o completar. Revise la columna
             de documentos en sus inscripciones y presione el botón correspondiente.
           </div>
         )}
@@ -643,10 +405,7 @@ export default function PanelEstudiantePage() {
             </p>
           </Link>
 
-          <a
-            href="#mis-inscripciones"
-            className="rounded-[28px] border border-emerald-100 bg-emerald-50 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-          >
+          <div className="rounded-[28px] border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
             <div className="text-4xl">🧾</div>
 
             <h3 className="mt-4 text-xl font-black text-slate-900">
@@ -658,15 +417,12 @@ export default function PanelEstudiantePage() {
             </p>
 
             <p className="mt-5 text-sm font-black text-emerald-700">
-              Ver mis inscripciones →
+              Mis inscripciones
             </p>
-          </a>
+          </div>
         </div>
 
-        <div
-          id="mis-inscripciones"
-          className="rounded-[28px] border border-slate-200 bg-white shadow-sm"
-        >
+        <div className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-5 py-4">
             <h2 className="text-lg font-black text-slate-900">
               Mis inscripciones
@@ -692,7 +448,7 @@ export default function PanelEstudiantePage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1350px] border-collapse text-sm">
+              <table className="w-full min-w-[1050px] border-collapse text-sm">
                 <thead>
                   <tr className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                     <th className="border-b border-slate-200 px-4 py-3">
@@ -714,12 +470,6 @@ export default function PanelEstudiantePage() {
                       Documentos
                     </th>
                     <th className="border-b border-slate-200 px-4 py-3">
-                      Calificación
-                    </th>
-                    <th className="border-b border-slate-200 px-4 py-3">
-                      Certificado
-                    </th>
-                    <th className="border-b border-slate-200 px-4 py-3">
                       Acción
                     </th>
                   </tr>
@@ -737,8 +487,6 @@ export default function PanelEstudiantePage() {
                       item.estado ||
                       "Sin estado";
                     const resumenDocs = resumenDocumentos(item.id);
-                    const resumenCalif = resumenCalificacion(item.id);
-                    const resumenCert = resumenCertificado(item.id);
 
                     return (
                       <tr key={item.id} className="hover:bg-slate-50">
@@ -784,38 +532,6 @@ export default function PanelEstudiantePage() {
                           >
                             {resumenDocs.texto}
                           </span>
-                        </td>
-
-                        <td className="border-b border-slate-100 px-4 py-3">
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-black ${resumenCalif.clase}`}
-                          >
-                            {resumenCalif.texto}
-                          </span>
-                          <p className="mt-1 text-xs font-semibold text-slate-500">
-                            {resumenCalif.detalle}
-                          </p>
-                        </td>
-
-                        <td className="border-b border-slate-100 px-4 py-3">
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-black ${resumenCert.clase}`}
-                          >
-                            {resumenCert.texto}
-                          </span>
-                          <p className="mt-1 text-xs font-semibold text-slate-500">
-                            {resumenCert.detalle}
-                          </p>
-
-                          {resumenCert.href && resumenCert.boton && (
-                            <Link
-                              href={resumenCert.href}
-                              target="_blank"
-                              className="mt-2 inline-block rounded-xl bg-purple-700 px-3 py-2 text-xs font-black text-white hover:bg-purple-800"
-                            >
-                              {resumenCert.boton}
-                            </Link>
-                          )}
                         </td>
 
                         <td className="border-b border-slate-100 px-4 py-3">
