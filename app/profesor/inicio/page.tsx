@@ -5,12 +5,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type ProfesorSesion = {
-  id: string;
+  id?: string;
+  profesor_id?: string;
   nombre_completo: string;
   cedula: string | null;
   telefono: string | null;
   correo: string | null;
-  codigo_acceso: string | null;
+  codigo_acceso?: string | null;
+  especialidad?: string | null;
 };
 
 type RelacionNombre =
@@ -75,13 +77,32 @@ export default function ProfesorInicioPage() {
     const sesion = localStorage.getItem("profesor_sesion");
 
     if (!sesion) {
-      window.location.href = "/profesor";
+      window.location.href = "/profesor/login";
       return;
     }
 
-    const profesorData = JSON.parse(sesion) as ProfesorSesion;
-    setProfesor(profesorData);
-    cargarProgramaciones(profesorData.id);
+    try {
+      const profesorData = JSON.parse(sesion) as ProfesorSesion;
+      const profesorId = profesorData.profesor_id || profesorData.id;
+
+      if (!profesorId) {
+        localStorage.removeItem("profesor_sesion");
+        window.location.href = "/profesor/login";
+        return;
+      }
+
+      const sesionNormalizada: ProfesorSesion = {
+        ...profesorData,
+        id: profesorId,
+        profesor_id: profesorId,
+      };
+
+      setProfesor(sesionNormalizada);
+      cargarProgramaciones(profesorId);
+    } catch (err) {
+      localStorage.removeItem("profesor_sesion");
+      window.location.href = "/profesor/login";
+    }
   }, []);
 
   async function cargarProgramaciones(profesorId: string) {
@@ -120,7 +141,11 @@ export default function ProfesorInicioPage() {
 
     if (error) {
       console.error("Error programaciones profesor:", error);
-      setError(`Error cargando cursos asignados: ${error.message}`);
+      setError(
+        error.message
+          ? `Error cargando cursos asignados: ${error.message}`
+          : "Error cargando cursos asignados. Verifique la relación profesor/programación."
+      );
       setProgramaciones([]);
     } else {
       setProgramaciones((data || []) as ProgramacionProfesor[]);
@@ -131,7 +156,7 @@ export default function ProfesorInicioPage() {
 
   function cerrarSesion() {
     localStorage.removeItem("profesor_sesion");
-    window.location.href = "/profesor";
+    window.location.href = "/profesor/login";
   }
 
   function formatearFecha(valor: string | null | undefined) {
@@ -186,7 +211,8 @@ export default function ProfesorInicioPage() {
           </h2>
 
           <p className="mt-1 text-sm text-slate-500">
-            Seleccione un curso para registrar asistencia de sus estudiantes.
+            Seleccione un curso para registrar asistencia o consultar sus
+            estudiantes.
           </p>
         </div>
 
@@ -225,7 +251,7 @@ export default function ProfesorInicioPage() {
                     {curso?.nombre || "Curso sin nombre"}
                   </h3>
 
-                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
                     {curso?.descripcion || "Sin descripción"}
                   </p>
 
@@ -234,16 +260,21 @@ export default function ProfesorInicioPage() {
                       titulo="Fecha inicio"
                       valor={formatearFecha(programacion.fecha_inicio)}
                     />
+
                     <InfoBox
                       titulo="Fecha fin"
                       valor={formatearFecha(programacion.fecha_fin)}
                     />
+
                     <InfoBox
                       titulo="Horario"
                       valor={horario?.nombre || "-"}
                     />
+
                     <InfoBox titulo="Días" valor={horario?.dias || "-"} />
+
                     <InfoBox titulo="Aula" valor={aula?.nombre || "-"} />
+
                     <InfoBox
                       titulo="Cupos"
                       valor={`${programacion.cupo_disponible ?? "-"} / ${
@@ -252,21 +283,28 @@ export default function ProfesorInicioPage() {
                     />
                   </div>
 
-                  <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                    <Link
-                      href={`/profesor/asistencias?programacion=${programacion.id}`}
-                      className="rounded-2xl bg-green-600 px-4 py-3 text-center text-sm font-black text-white shadow-sm hover:bg-green-700"
-                    >
-                      Registrar asistencia
-                    </Link>
+              <div className="mt-5 grid gap-2 sm:grid-cols-3">
+  <Link
+    href={`/profesor/asistencias?programacion=${programacion.id}`}
+    className="rounded-2xl bg-blue-700 px-4 py-3 text-center text-sm font-black text-white shadow-sm hover:bg-blue-800"
+  >
+    Registrar asistencia
+  </Link>
 
-                    <Link
-                      href={`/profesor/asistencias?programacion=${programacion.id}`}
-                      className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-center text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50"
-                    >
-                      Ver estudiantes
-                    </Link>
-                  </div>
+  <Link
+    href={`/profesor/estudiantes?programacion=${programacion.id}`}
+    className="rounded-2xl border border-blue-200 bg-white px-4 py-3 text-center text-sm font-black text-blue-800 shadow-sm hover:bg-blue-50"
+  >
+    Ver estudiantes
+  </Link>
+
+  <Link
+    href={`/profesor/calificaciones?programacion=${programacion.id}`}
+    className="rounded-2xl bg-slate-900 px-4 py-3 text-center text-sm font-black text-white shadow-sm hover:bg-slate-800"
+  >
+    Calificaciones
+  </Link>
+</div>
                 </article>
               );
             })}

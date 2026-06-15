@@ -5,12 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type ProfesorSesion = {
-  id: string;
+  id?: string;
+  profesor_id?: string;
   nombre_completo: string;
   cedula: string | null;
   telefono: string | null;
   correo: string | null;
-  codigo_acceso: string | null;
+  codigo_acceso?: string | null;
+  especialidad?: string | null;
 };
 
 type RelacionNombre =
@@ -121,30 +123,51 @@ export default function ProfesorAsistenciasPage() {
     const sesion = localStorage.getItem("profesor_sesion");
 
     if (!sesion) {
-      window.location.href = "/profesor";
+      window.location.href = "/profesor/login";
       return;
     }
 
-    const profesorData = JSON.parse(sesion) as ProfesorSesion;
-    setProfesor(profesorData);
+    try {
+      const profesorData = JSON.parse(sesion) as ProfesorSesion;
+      const profesorId = profesorData.profesor_id || profesorData.id;
 
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("programacion") || "";
+      if (!profesorId) {
+        localStorage.removeItem("profesor_sesion");
+        window.location.href = "/profesor/login";
+        return;
+      }
 
-    if (!id) {
-      setError("No se recibió la programación del curso.");
-      return;
+      const sesionNormalizada: ProfesorSesion = {
+        ...profesorData,
+        id: profesorId,
+        profesor_id: profesorId,
+      };
+
+      setProfesor(sesionNormalizada);
+
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("programacion") || "";
+
+      if (!id) {
+        setError("No se recibió la programación del curso.");
+        return;
+      }
+
+      setProgramacionId(id);
+      cargarDatos(id, profesorId, fechaClase);
+    } catch {
+      localStorage.removeItem("profesor_sesion");
+      window.location.href = "/profesor/login";
     }
-
-    setProgramacionId(id);
-    cargarDatos(id, profesorData.id, fechaClase);
   }, []);
 
   useEffect(() => {
-    if (programacionId && profesor?.id) {
+    const profesorId = profesor?.profesor_id || profesor?.id;
+
+    if (programacionId && profesorId) {
       cargarAsistencias(programacionId, fechaClase);
     }
-  }, [fechaClase]);
+  }, [fechaClase, programacionId, profesor]);
 
   async function cargarDatos(
     idProgramacion: string,
@@ -185,7 +208,11 @@ export default function ProfesorAsistenciasPage() {
 
     if (programacionError) {
       console.error("Error programación:", programacionError);
-      setError(`Error cargando programación: ${programacionError.message}`);
+      setError(
+        programacionError.message
+          ? `Error cargando programación: ${programacionError.message}`
+          : "Error cargando la programación. Verifique que el curso esté asignado al profesor."
+      );
       setLoading(false);
       return;
     }
@@ -293,7 +320,7 @@ export default function ProfesorAsistenciasPage() {
 
   function cerrarSesion() {
     localStorage.removeItem("profesor_sesion");
-    window.location.href = "/profesor";
+    window.location.href = "/profesor/login";
   }
 
   function formatearFecha(valor: string | null | undefined) {
@@ -307,10 +334,7 @@ export default function ProfesorAsistenciasPage() {
     return `${day}/${month}/${year}`;
   }
 
-  function cambiarEstado(
-    inscripcionId: string,
-    estado: EstadoAsistencia
-  ) {
+  function cambiarEstado(inscripcionId: string, estado: EstadoAsistencia) {
     setFormulario((actual) => ({
       ...actual,
       [inscripcionId]: {
@@ -384,11 +408,9 @@ export default function ProfesorAsistenciasPage() {
         updated_at: new Date().toISOString(),
       }));
 
-    const { error } = await supabase
-      .from("asistencias_cursos")
-      .upsert(payload, {
-        onConflict: "inscripcion_id,programacion_id,fecha_clase",
-      });
+    const { error } = await supabase.from("asistencias_cursos").upsert(payload, {
+      onConflict: "inscripcion_id,programacion_id,fecha_clase",
+    });
 
     if (error) {
       console.error("Error guardando asistencia:", error);
@@ -594,7 +616,7 @@ export default function ProfesorAsistenciasPage() {
               <button
                 type="button"
                 onClick={() => marcarTodos("Presente")}
-                className="rounded-2xl bg-green-600 px-3 py-3 text-xs font-black text-white hover:bg-green-700"
+                className="rounded-2xl bg-blue-700 px-3 py-3 text-xs font-black text-white hover:bg-blue-800"
               >
                 Todos presentes
               </button>
@@ -707,22 +729,27 @@ export default function ProfesorAsistenciasPage() {
 
                       <div className="space-y-3">
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2">
-                          {(["Presente", "Ausente", "Tardanza", "Excusa"] as EstadoAsistencia[]).map(
-                            (estado) => (
-                              <button
-                                key={estado}
-                                type="button"
-                                onClick={() => cambiarEstado(item.id, estado)}
-                                className={`rounded-2xl border px-3 py-3 text-xs font-black ${
-                                  estadoActual === estado
-                                    ? colorEstado(estado)
-                                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                                }`}
-                              >
-                                {estado}
-                              </button>
-                            )
-                          )}
+                          {(
+                            [
+                              "Presente",
+                              "Ausente",
+                              "Tardanza",
+                              "Excusa",
+                            ] as EstadoAsistencia[]
+                          ).map((estado) => (
+                            <button
+                              key={estado}
+                              type="button"
+                              onClick={() => cambiarEstado(item.id, estado)}
+                              className={`rounded-2xl border px-3 py-3 text-xs font-black ${
+                                estadoActual === estado
+                                  ? colorEstado(estado)
+                                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                              }`}
+                            >
+                              {estado}
+                            </button>
+                          ))}
                         </div>
 
                         <textarea
@@ -747,7 +774,7 @@ export default function ProfesorAsistenciasPage() {
               type="button"
               disabled={guardando || loading}
               onClick={guardarAsistencia}
-              className="w-full rounded-2xl bg-green-600 px-4 py-4 text-base font-black text-white shadow-sm hover:bg-green-700 disabled:opacity-60"
+              className="w-full rounded-2xl bg-blue-700 px-4 py-4 text-base font-black text-white shadow-sm hover:bg-blue-800 disabled:opacity-60"
             >
               {guardando ? "Guardando asistencia..." : "Guardar asistencia"}
             </button>

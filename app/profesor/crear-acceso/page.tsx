@@ -3,19 +3,23 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-export default function LoginProfesorPage() {
+export default function CrearAccesoProfesorPage() {
   const [cedula, setCedula] = useState("");
   const [clave, setClave] = useState("");
+  const [confirmarClave, setConfirmarClave] = useState("");
+
   const [loading, setLoading] = useState(false);
+  const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
 
   function limpiarCedula(valor: string) {
     return valor.replace(/\D/g, "");
   }
 
-  async function iniciarSesion(e: React.FormEvent<HTMLFormElement>) {
+  async function crearAcceso(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
+    setMensaje("");
     setError("");
 
     const cedulaLimpia = limpiarCedula(cedula);
@@ -25,15 +29,20 @@ export default function LoginProfesorPage() {
       return;
     }
 
-    if (!clave.trim()) {
-      setError("Debe digitar su clave.");
+    if (clave.length < 6) {
+      setError("La clave debe tener mínimo 6 caracteres.");
+      return;
+    }
+
+    if (clave !== confirmarClave) {
+      setError("La clave y la confirmación no coinciden.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.rpc("login_profesor", {
+      const { data, error } = await supabase.rpc("crear_acceso_profesor", {
         p_cedula: cedulaLimpia,
         p_clave: clave,
       });
@@ -43,29 +52,23 @@ export default function LoginProfesorPage() {
       }
 
       if (data?.ok === false) {
-        throw new Error(data.mensaje || "Cédula o clave incorrecta.");
+        throw new Error(data.mensaje || "No se pudo crear el acceso.");
       }
 
-      if (!data?.profesor) {
-        throw new Error("No se recibió la información del profesor.");
-      }
-
-      localStorage.setItem(
-        "profesor_sesion",
-        JSON.stringify({
-          profesor_id: data.profesor.profesor_id,
-          nombre_completo: data.profesor.nombre_completo,
-          cedula: data.profesor.cedula,
-          correo: data.profesor.correo,
-          telefono: data.profesor.telefono,
-          especialidad: data.profesor.especialidad,
-        })
+      setMensaje(
+        data?.mensaje ||
+          "Acceso creado correctamente. Ya puede iniciar sesión."
       );
 
-      window.location.href = "/profesor/inicio";
+      setCedula("");
+      setClave("");
+      setConfirmarClave("");
     } catch (err) {
       const mensaje =
-        err instanceof Error ? err.message : "Error iniciando sesión.";
+        err instanceof Error
+          ? err.message
+          : "Error creando el acceso del profesor.";
+
       setError(mensaje);
     }
 
@@ -78,34 +81,40 @@ export default function LoginProfesorPage() {
         <div className="grid w-full overflow-hidden rounded-[32px] bg-white shadow-xl md:grid-cols-[0.9fr_1.1fr]">
           <div className="bg-gradient-to-br from-blue-950 via-blue-800 to-slate-900 p-8 text-white md:p-10">
             <p className="text-sm font-black uppercase tracking-[0.25em] text-blue-200">
-              Panel profesores
+              Acceso profesores
             </p>
 
             <h1 className="mt-4 text-3xl font-black leading-tight md:text-5xl">
-              Iniciar sesión
+              Crear clave de acceso
             </h1>
 
             <p className="mt-5 text-sm font-semibold leading-relaxed text-blue-100 md:text-base">
-              Acceda con su número de cédula y la clave que creó para consultar
-              sus cursos, estudiantes, asistencias y calificaciones.
+              Digite su cédula y cree una clave personal para entrar al panel
+              del profesor.
             </p>
 
             <div className="mt-8 rounded-3xl bg-white/10 p-5 ring-1 ring-white/20">
               <p className="text-sm font-bold text-blue-50">
-                Si todavía no tiene clave, debe crear primero su acceso como
-                profesor.
+                Para poder crear acceso, el profesor debe estar registrado y
+                activo en el catálogo de profesores.
               </p>
             </div>
           </div>
 
           <div className="p-6 md:p-10">
             <h2 className="text-2xl font-black text-slate-900">
-              Acceso del profesor
+              Crear mi acceso
             </h2>
 
             <p className="mt-2 text-sm font-semibold text-slate-500">
-              Digite su cédula y su clave personal.
+              Use su número de cédula sin importar si lo escribe con guiones.
             </p>
+
+            {mensaje && (
+              <div className="mt-5 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-bold text-green-700">
+                {mensaje}
+              </div>
+            )}
 
             {error && (
               <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
@@ -113,7 +122,7 @@ export default function LoginProfesorPage() {
               </div>
             )}
 
-            <form onSubmit={iniciarSesion} className="mt-6 space-y-4">
+            <form onSubmit={crearAcceso} className="mt-6 space-y-4">
               <div>
                 <label className="mb-1 block text-sm font-bold text-slate-700">
                   Cédula
@@ -130,14 +139,28 @@ export default function LoginProfesorPage() {
 
               <div>
                 <label className="mb-1 block text-sm font-bold text-slate-700">
-                  Clave
+                  Nueva clave
                 </label>
 
                 <input
                   type="password"
                   value={clave}
                   onChange={(e) => setClave(e.target.value)}
-                  placeholder="Digite su clave"
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-bold text-slate-700">
+                  Confirmar clave
+                </label>
+
+                <input
+                  type="password"
+                  value={confirmarClave}
+                  onChange={(e) => setConfirmarClave(e.target.value)}
+                  placeholder="Repita la clave"
                   className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
@@ -147,7 +170,7 @@ export default function LoginProfesorPage() {
                 disabled={loading}
                 className="w-full rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-60"
               >
-                {loading ? "Validando acceso..." : "Entrar al panel"}
+                {loading ? "Creando acceso..." : "Crear acceso"}
               </button>
             </form>
 
@@ -155,11 +178,11 @@ export default function LoginProfesorPage() {
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = "/profesor/crear-acceso";
+                  window.location.href = "/profesor/login";
                 }}
                 className="rounded-2xl bg-slate-900 px-4 py-3 text-center text-sm font-black text-white hover:bg-slate-800"
               >
-                Crear mi acceso
+                Ya tengo acceso
               </button>
 
               <button

@@ -6,9 +6,6 @@ import { supabase } from "@/lib/supabaseClient";
 
 type RelacionParticipante =
   | {
-      id: string;
-      auth_user_id: string | null;
-      estado: string | null;
       nombre_completo: string;
       cedula: string | null;
       fecha_nacimiento: string | null;
@@ -24,9 +21,6 @@ type RelacionParticipante =
       cedula_tutor: string | null;
     }
   | {
-      id: string;
-      auth_user_id: string | null;
-      estado: string | null;
       nombre_completo: string;
       cedula: string | null;
       fecha_nacimiento: string | null;
@@ -139,8 +133,6 @@ type RelacionProgramacion =
 
 type InscripcionFormulario = {
   id: string;
-  participante_id: string | null;
-  tshirt_talla: string | null;
   codigo_inscripcion: string | null;
   fecha_inscripcion: string | null;
   estado: string | null;
@@ -183,140 +175,85 @@ export default function FormularioInscripcionImprimirPage() {
     setLoading(true);
     setError("");
 
-    try {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-
-      if (authError || !authData.user) {
-        window.location.href = `/estudiantes/login?redirect=${encodeURIComponent(
-          `/movil/inscripcion/formulario?codigo=${codigoInscripcion}`
-        )}`;
-        return;
-      }
-
-      const { data: participanteSesion, error: participanteError } =
-        await supabase
-          .from("participantes")
-          .select("id, estado")
-          .eq("auth_user_id", authData.user.id)
-          .maybeSingle();
-
-      if (participanteError) {
-        throw new Error(
-          `Error validando estudiante: ${participanteError.message}`
-        );
-      }
-
-      if (!participanteSesion) {
-        setInscripcion(null);
-        setError(
-          "No se encontró un participante vinculado a este usuario. Inicie sesión con una cuenta de estudiante válida."
-        );
-        return;
-      }
-
-      if (
-        participanteSesion.estado &&
-        participanteSesion.estado.toLowerCase() !== "activo"
-      ) {
-        await supabase.auth.signOut();
-        window.location.href = "/estudiantes/login";
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("inscripciones")
-        .select(
-          `
-          id,
-          participante_id,
-          tshirt_talla,
-          codigo_inscripcion,
-          fecha_inscripcion,
-          estado,
-          observacion,
-          participantes (
-            id,
-            auth_user_id,
-            estado,
-            nombre_completo,
-            cedula,
-            fecha_nacimiento,
-            sexo,
-            telefono,
-            whatsapp,
-            correo,
-            direccion,
-            tshirt_talla,
-            es_menor_edad,
-            nombre_tutor,
-            telefono_tutor,
-            cedula_tutor
-          ),
-          programaciones_cursos (
-            fecha_inicio,
-            fecha_fin,
-            precio_especial,
-            cursos (
-              nombre,
-              descripcion,
-              precio,
-              cantidad_horas,
-              duracion
-            ),
-            modalidades (
-              nombre
-            ),
-            horarios (
-              nombre,
-              dias
-            ),
-            aulas (
-              nombre
-            ),
-            profesores (
-              nombre_completo
-            )
-          ),
-          estados_inscripcion (
-            nombre
-          ),
-          condiciones_participante (
-            nombre
-          ),
-          metodos_pago (
-            nombre
-          ),
-          tipos_beca (
-            nombre
-          )
+    const { data, error } = await supabase
+      .from("inscripciones")
+      .select(
         `
+        id,
+        codigo_inscripcion,
+        fecha_inscripcion,
+        estado,
+        observacion,
+        participantes (
+          nombre_completo,
+          cedula,
+          fecha_nacimiento,
+          sexo,
+          telefono,
+          whatsapp,
+          correo,
+          direccion,
+          tshirt_talla,
+          es_menor_edad,
+          nombre_tutor,
+          telefono_tutor,
+          cedula_tutor
+        ),
+        programaciones_cursos (
+          fecha_inicio,
+          fecha_fin,
+          precio_especial,
+          cursos (
+            nombre,
+            descripcion,
+            precio,
+            cantidad_horas,
+            duracion
+          ),
+          modalidades (
+            nombre
+          ),
+          horarios (
+            nombre,
+            dias
+          ),
+          aulas (
+            nombre
+          ),
+          profesores (
+            nombre_completo
+          )
+        ),
+        estados_inscripcion (
+          nombre
+        ),
+        condiciones_participante (
+          nombre
+        ),
+        metodos_pago (
+          nombre
+        ),
+        tipos_beca (
+          nombre
         )
-        .eq("codigo_inscripcion", codigoInscripcion)
-        .eq("participante_id", participanteSesion.id)
-        .maybeSingle();
+      `
+      )
+      .eq("codigo_inscripcion", codigoInscripcion)
+      .maybeSingle();
 
-      if (error) {
-        throw new Error(`Error cargando formulario: ${error.message}`);
-      }
+    if (error) {
+      console.error("Error Supabase:", error);
+      setError(`Error cargando formulario: ${error.message}`);
+      setInscripcion(null);
+    } else {
+      setInscripcion(data as InscripcionFormulario | null);
 
       if (!data) {
-        setInscripcion(null);
-        setError(
-          "No tiene permiso para ver este formulario o la inscripción no pertenece al estudiante conectado."
-        );
-        return;
+        setError("No se encontró una inscripción con este código.");
       }
-
-      setInscripcion(data as InscripcionFormulario);
-    } catch (err) {
-      const mensaje =
-        err instanceof Error ? err.message : "Error cargando formulario.";
-      console.error("Error formulario:", err);
-      setError(mensaje);
-      setInscripcion(null);
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
   }
 
   function imprimir() {
@@ -482,7 +419,7 @@ export default function FormularioInscripcionImprimirPage() {
               <Campo label="Teléfono" valor={participante?.telefono} />
               <Campo label="WhatsApp" valor={participante?.whatsapp} />
               <Campo label="Correo" valor={participante?.correo} />
-              <Campo label="Tamaño T-shirt" valor={inscripcion.tshirt_talla || participante?.tshirt_talla} />
+              <Campo label="Tamaño T-shirt" valor={participante?.tshirt_talla} />
               <Campo label="Menor de edad" valor={participante?.es_menor_edad ? "Sí" : "No"} />
             </div>
 

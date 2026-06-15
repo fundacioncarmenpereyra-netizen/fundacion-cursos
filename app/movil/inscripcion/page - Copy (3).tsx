@@ -91,30 +91,6 @@ type InscripcionExistente = {
     | null;
 };
 
-type DocumentoRequerido = {
-  id: "cedula_frontal" | "cedula_trasera" | "foto_estudiante";
-  nombre: string;
-  descripcion: string;
-};
-
-const DOCUMENTOS_REQUERIDOS: DocumentoRequerido[] = [
-  {
-    id: "cedula_frontal",
-    nombre: "Cédula frontal",
-    descripcion: "Suba una imagen o PDF del lado frontal de la cédula.",
-  },
-  {
-    id: "cedula_trasera",
-    nombre: "Cédula trasera",
-    descripcion: "Suba una imagen o PDF del lado trasero de la cédula.",
-  },
-  {
-    id: "foto_estudiante",
-    nombre: "Foto del estudiante",
-    descripcion: "Suba una foto clara del estudiante.",
-  },
-];
-
 function obtenerPrimero<T>(valor: T | T[] | null | undefined): T | null {
   if (!valor) return null;
   if (Array.isArray(valor)) return valor[0] || null;
@@ -148,8 +124,6 @@ export default function InscripcionMovilPage() {
 
   const [tshirtTalla, setTshirtTalla] = useState("");
   const [observacion, setObservacion] = useState("");
-
-  const [archivosDocumentos, setArchivosDocumentos] = useState<Record<string, File | null>>({});
 
   const [loading, setLoading] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -487,115 +461,6 @@ export default function InscripcionMovilPage() {
     return true;
   }
 
-  function actualizarArchivoDocumento(documentoId: string, archivo: File | null) {
-    setArchivosDocumentos((prev) => ({
-      ...prev,
-      [documentoId]: archivo,
-    }));
-  }
-
-  function extensionArchivo(nombre: string) {
-    const partes = nombre.split(".");
-    return partes.length > 1 ? partes.pop()?.toLowerCase() || "file" : "file";
-  }
-
-  function validarArchivoDocumento(archivo: File) {
-    const maxSize = 8 * 1024 * 1024;
-
-    if (archivo.size > maxSize) {
-      return "Cada documento debe tener un tamaño máximo de 8 MB.";
-    }
-
-    const tipoPermitido =
-      archivo.type.startsWith("image/") || archivo.type === "application/pdf";
-
-    if (!tipoPermitido) {
-      return "Solo se permiten documentos en imagen o PDF.";
-    }
-
-    return "";
-  }
-
-  function validarDocumentosRequeridos() {
-    for (const documento of DOCUMENTOS_REQUERIDOS) {
-      const archivo = archivosDocumentos[documento.id];
-
-      if (!archivo) {
-        setError(`Debe subir el documento obligatorio: ${documento.nombre}.`);
-        return false;
-      }
-
-      const errorArchivo = validarArchivoDocumento(archivo);
-
-      if (errorArchivo) {
-        setError(`${documento.nombre}: ${errorArchivo}`);
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  async function subirDocumentosInscripcion(
-    inscripcionId: string,
-    participanteId: string,
-  ) {
-    for (const documento of DOCUMENTOS_REQUERIDOS) {
-      const archivo = archivosDocumentos[documento.id];
-
-      if (!archivo) {
-        throw new Error(`Debe subir el documento obligatorio: ${documento.nombre}.`);
-      }
-
-      const errorArchivo = validarArchivoDocumento(archivo);
-
-      if (errorArchivo) {
-        throw new Error(`${documento.nombre}: ${errorArchivo}`);
-      }
-
-      const ext = extensionArchivo(archivo.name);
-      const nombreSeguro = `${Date.now()}-${crypto.randomUUID()}.${ext}`;
-      const path = `${inscripcionId}/${documento.id}/${nombreSeguro}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("documentos-participantes")
-        .upload(path, archivo, {
-          cacheControl: "3600",
-          upsert: false,
-        });
-
-      if (uploadError) {
-        throw new Error(`Error subiendo ${documento.nombre}: ${uploadError.message}`);
-      }
-
-      const { data: publicData } = supabase.storage
-        .from("documentos-participantes")
-        .getPublicUrl(path);
-
-      const { error: insertError } = await supabase
-        .from("participantes_documentos")
-        .insert({
-          participante_id: participanteId,
-          inscripcion_id: inscripcionId,
-          tipo_documento_id: null,
-          nombre_documento: documento.nombre,
-          archivo_url: publicData.publicUrl,
-          archivo_path: path,
-          mime_type: archivo.type,
-          size_bytes: archivo.size,
-          estado: "Pendiente",
-          observacion: "Subido durante el proceso de inscripción.",
-          updated_at: new Date().toISOString(),
-        });
-
-      if (insertError) {
-        throw new Error(
-          `Error guardando ${documento.nombre}: ${insertError.message}`,
-        );
-      }
-    }
-  }
-
   async function guardarInscripcion(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
@@ -659,10 +524,6 @@ export default function InscripcionMovilPage() {
       return;
     }
 
-    if (!validarDocumentosRequeridos()) {
-      return;
-    }
-
     const puedeInscribirse = await validarInscripcionDuplicada();
 
     if (!puedeInscribirse) {
@@ -716,11 +577,9 @@ export default function InscripcionMovilPage() {
       updated_at: new Date().toISOString(),
     };
 
-    const { data: inscripcionCreada, error: inscripcionError } = await supabase
+    const { error: inscripcionError } = await supabase
       .from("inscripciones")
-      .insert(inscripcionPayload)
-      .select("id, codigo_inscripcion")
-      .single();
+      .insert(inscripcionPayload);
 
     if (inscripcionError) {
       console.error("Error inscripción:", inscripcionError);
@@ -729,38 +588,12 @@ export default function InscripcionMovilPage() {
       return;
     }
 
-    if (!inscripcionCreada?.id) {
-      setError("La inscripción fue registrada, pero no se recibió el ID para subir documentos.");
-      setGuardando(false);
-      return;
-    }
-
-    try {
-      await subirDocumentosInscripcion(
-        inscripcionCreada.id,
-        sesion.participante_id,
-      );
-    } catch (documentosError) {
-      const mensajeError =
-        documentosError instanceof Error
-          ? documentosError.message
-          : "Error subiendo documentos.";
-
-      console.error("Error subiendo documentos de inscripción:", documentosError);
-      setError(
-        `La inscripción fue creada con el código ${codigoInscripcion}, pero ocurrió un error subiendo documentos: ${mensajeError}. Puede completarlos desde el panel del estudiante.`,
-      );
-      setGuardando(false);
-      return;
-    }
-
     setMensaje(
-      `Inscripción y documentos registrados correctamente. Código: ${codigoInscripcion}`,
+      `Inscripción registrada correctamente. Código: ${codigoInscripcion}`,
     );
 
     setTshirtTalla("");
     setObservacion("");
-    setArchivosDocumentos({});
 
     window.location.href = `/movil/inscripcion/confirmacion?codigo=${codigoInscripcion}`;
 
@@ -1125,71 +958,12 @@ export default function InscripcionMovilPage() {
             />
           </div>
 
-          <div className="border-t border-slate-200 pt-4">
-            <h2 className="text-lg font-black text-slate-900">
-              Documentos requeridos
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-600">
-              Adjunte la cédula frontal, la cédula trasera y la foto del estudiante para completar la inscripción. Se permiten imágenes o PDF hasta 8 MB.
-            </p>
-          </div>
-
-          <div className="grid gap-4">
-            {DOCUMENTOS_REQUERIDOS.map((documento) => {
-              const archivo = archivosDocumentos[documento.id];
-
-              return (
-                <div
-                  key={documento.id}
-                  className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
-                >
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-black text-slate-900">
-                        {documento.nombre}
-                      </p>
-
-                      <p className="mt-1 text-xs font-semibold text-slate-500">
-                        {documento.descripcion}
-                      </p>
-                    </div>
-
-                    <span className="w-fit rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-700">
-                      Obligatorio
-                    </span>
-                  </div>
-
-                  <input
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={(e) =>
-                      actualizarArchivoDocumento(
-                        documento.id,
-                        e.target.files?.[0] || null,
-                      )
-                    }
-                    className="mt-3 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm file:mr-4 file:rounded-xl file:border-0 file:bg-blue-700 file:px-4 file:py-2 file:text-sm file:font-black file:text-white"
-                  />
-
-                  {archivo && (
-                    <p className="mt-2 text-xs font-bold text-slate-600">
-                      Archivo seleccionado: {archivo.name}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
           <button
             type="submit"
             disabled={guardando || loading || !sesion || !programacion}
             className="w-full rounded-2xl bg-blue-700 px-4 py-4 text-base font-black text-white shadow-sm disabled:opacity-60"
           >
-            {guardando
-              ? "Registrando inscripción y documentos..."
-              : "Finalizar inscripción"}
+            {guardando ? "Registrando inscripción..." : "Enviar inscripción"}
           </button>
         </form>
       </section>
