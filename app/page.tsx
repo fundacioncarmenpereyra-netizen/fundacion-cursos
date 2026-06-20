@@ -24,7 +24,7 @@ const accesos = [
     boton: "Entrar como estudiante",
   },
   {
-    titulo: "Administradores",
+    titulo: "Administradores FDCP",
     descripcion:
       "Gestiona inscripciones, pagos, asistencias, remitidos INFOTEP, aprobaciones y certificados.",
     href: "/dashboard",
