@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type EstudianteSesion = {
@@ -153,7 +153,6 @@ export default function InscripcionMovilPage() {
 
   const [loading, setLoading] = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const guardandoRef = useRef(false);
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
 
@@ -430,27 +429,6 @@ export default function InscripcionMovilPage() {
       return false;
     }
 
-    const inscripcionMismaProgramacion = (
-      (inscripcionesExistentes || []) as InscripcionExistente[]
-    ).find((inscripcion) => {
-      const estadoInscripcion = normalizarTexto(inscripcion.estado);
-
-      return (
-        inscripcion.programacion_id === programacionId &&
-        !estadoInscripcion.includes("anulada") &&
-        !estadoInscripcion.includes("cancelada")
-      );
-    });
-
-    if (inscripcionMismaProgramacion) {
-      setError(
-        `Este estudiante ya tiene una inscripción registrada para este curso. Código: ${
-          inscripcionMismaProgramacion.codigo_inscripcion || "sin código"
-        }.`,
-      );
-      return false;
-    }
-
     const cursoNuevo = obtenerPrimero(programacion.cursos);
     const horarioNuevo = obtenerPrimero(programacion.horarios);
     const nombreCursoNuevo = normalizarTexto(cursoNuevo?.nombre);
@@ -621,8 +599,6 @@ export default function InscripcionMovilPage() {
   async function guardarInscripcion(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    if (guardandoRef.current) return;
-
     setError("");
     setMensaje("");
 
@@ -687,16 +663,13 @@ export default function InscripcionMovilPage() {
       return;
     }
 
-    guardandoRef.current = true;
-    setGuardando(true);
-
     const puedeInscribirse = await validarInscripcionDuplicada();
 
     if (!puedeInscribirse) {
-      guardandoRef.current = false;
-      setGuardando(false);
       return;
     }
+
+    setGuardando(true);
 
     const { error: participanteError } = await supabase
       .from("participantes")
@@ -717,7 +690,6 @@ export default function InscripcionMovilPage() {
     if (participanteError) {
       console.error("Error actualizando participante:", participanteError);
       setError(`Error actualizando datos del estudiante: ${participanteError.message}`);
-      guardandoRef.current = false;
       setGuardando(false);
       return;
     }
@@ -752,28 +724,13 @@ export default function InscripcionMovilPage() {
 
     if (inscripcionError) {
       console.error("Error inscripción:", inscripcionError);
-
-      if (
-        inscripcionError.code === "23505" ||
-        inscripcionError.message.includes(
-          "uq_inscripciones_participante_programacion",
-        )
-      ) {
-        setError(
-          "Este estudiante ya tiene una inscripción registrada para este curso.",
-        );
-      } else {
-        setError(`Error registrando inscripción: ${inscripcionError.message}`);
-      }
-
-      guardandoRef.current = false;
+      setError(`Error registrando inscripción: ${inscripcionError.message}`);
       setGuardando(false);
       return;
     }
 
     if (!inscripcionCreada?.id) {
       setError("La inscripción fue registrada, pero no se recibió el ID para subir documentos.");
-      guardandoRef.current = false;
       setGuardando(false);
       return;
     }
@@ -793,7 +750,6 @@ export default function InscripcionMovilPage() {
       setError(
         `La inscripción fue creada con el código ${codigoInscripcion}, pero ocurrió un error subiendo documentos: ${mensajeError}. Puede completarlos desde el panel del estudiante.`,
       );
-      guardandoRef.current = false;
       setGuardando(false);
       return;
     }
@@ -808,7 +764,6 @@ export default function InscripcionMovilPage() {
 
     window.location.href = `/movil/inscripcion/confirmacion?codigo=${codigoInscripcion}`;
 
-    guardandoRef.current = false;
     setGuardando(false);
   }
 
